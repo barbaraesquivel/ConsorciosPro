@@ -112,7 +112,7 @@
             // 
             baseDeDatosToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { backupRestoreToolStripMenuItem });
             baseDeDatosToolStripMenuItem.Name = "baseDeDatosToolStripMenuItem";
-            baseDeDatosToolStripMenuItem.Size = new Size(94, 20);
+            baseDeDatosToolStripMenuItem.Size = new Size(92, 20);
             baseDeDatosToolStripMenuItem.Tag = "lb_baseDeDatos";
             baseDeDatosToolStripMenuItem.Text = "Base de Datos";
             baseDeDatosToolStripMenuItem.Visible = false;
@@ -120,7 +120,7 @@
             // backupRestoreToolStripMenuItem
             // 
             backupRestoreToolStripMenuItem.Name = "backupRestoreToolStripMenuItem";
-            backupRestoreToolStripMenuItem.Size = new Size(180, 22);
+            backupRestoreToolStripMenuItem.Size = new Size(173, 22);
             backupRestoreToolStripMenuItem.Tag = "lb_backupRestore";
             backupRestoreToolStripMenuItem.Text = "Backup / Restaurar";
             backupRestoreToolStripMenuItem.Click += AbrirBackup;
