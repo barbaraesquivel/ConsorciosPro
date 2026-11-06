@@ -216,6 +216,20 @@ namespace BLL
             }
         }
 
+        public List<TemaPropuesto_413BE> ObtenerGruposReclamos_413BE(int idConsorcio, DateTime desde, DateTime hasta)
+        {
+            if (desde.Date > hasta.Date)
+            {
+                throw new ArgumentException(TraduccionAyuda_413BE.Obtener_413BE("ex_fechasInvertidas", "La fecha desde no puede ser posterior a la fecha hasta"));
+            }
+            List<TemaPropuesto_413BE> grupos = _reclamoDAL.ObtenerGruposReclamos_413BE(idConsorcio, desde, hasta);
+            if (grupos.Count == 0)
+            {
+                throw new InvalidOperationException(TraduccionAyuda_413BE.Obtener_413BE("ex_sinReclamosPeriodo", "El consorcio no tiene reclamos en el período seleccionado"));
+            }
+            return grupos;
+        }
+
         private void RecalcularReclamo_413BE(Reclamo_413BE reclamo)
         {
             reclamo.Dvh_413BE = _verificador.CalcularDVH(reclamo);

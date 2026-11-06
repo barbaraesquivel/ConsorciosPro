@@ -84,6 +84,34 @@ namespace AppBase
         private void HabilitarDerivar_413BE()
         {
             btnDerivar.Enabled = ReclamoSeleccionado_413BE() != null && ProveedorSeleccionado_413BE() != null;
+            ActualizarSinProveedores_413BE();
+        }
+
+        private void ActualizarSinProveedores_413BE()
+        {
+            bool sinProveedores = ReclamoSeleccionado_413BE() != null && dgvProveedores.Rows.Count == 0;
+            lbSinProveedores.Visible = sinProveedores;
+            btnRegistrarProveedor.Enabled = sinProveedores;
+        }
+
+        private void btnRegistrarProveedor_Click_413BE(object sender, EventArgs e)
+        {
+            Reclamo_413BE? reclamo = ReclamoSeleccionado_413BE();
+            if (reclamo == null) return;
+            using (frmRegistrarProveedor_413BE f = new frmRegistrarProveedor_413BE(reclamo.IdCategoria_413BE))
+            {
+                if (f.ShowDialog(this) == DialogResult.OK)
+                {
+                    try
+                    {
+                        MostrarProveedores_413BE(reclamo.IdCategoria_413BE, (CriterioOrden_413BE)tabCriterios.SelectedIndex);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(ex.Message, this.Text);
+                    }
+                }
+            }
         }
 
         private void MostrarProveedores_413BE(int idCategoria, CriterioOrden_413BE criterio)

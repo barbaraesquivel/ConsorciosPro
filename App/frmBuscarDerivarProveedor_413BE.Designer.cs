@@ -42,6 +42,8 @@ namespace AppBase
             this.numSla = new System.Windows.Forms.NumericUpDown();
             this.btnDerivar = new System.Windows.Forms.Button();
             this.lbReclamoDerivado = new System.Windows.Forms.Label();
+            this.btnRegistrarProveedor = new System.Windows.Forms.Button();
+            this.lbSinProveedores = new System.Windows.Forms.Label();
             ((System.ComponentModel.ISupportInitialize)(this.dgvReclamos)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.dgvProveedores)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numSla)).BeginInit();
@@ -212,6 +214,8 @@ namespace AppBase
             this.grpDerivacion.Controls.Add(this.lblSla);
             this.grpDerivacion.Controls.Add(this.numSla);
             this.grpDerivacion.Controls.Add(this.btnDerivar);
+            this.grpDerivacion.Controls.Add(this.btnRegistrarProveedor);
+            this.grpDerivacion.Controls.Add(this.lbSinProveedores);
             this.grpDerivacion.Size = new System.Drawing.Size(1076, 90);
             this.grpDerivacion.TabStop = false;
             this.grpDerivacion.Text = "Derivación";
@@ -242,6 +246,24 @@ namespace AppBase
             this.btnDerivar.Name = "btnDerivar";
             this.btnDerivar.TabIndex = 2;
             this.btnDerivar.Click += new System.EventHandler(this.btnDerivar_Click_413BE);
+            this.btnRegistrarProveedor.Location = new System.Drawing.Point(520, 34);
+            this.btnRegistrarProveedor.Size = new System.Drawing.Size(160, 28);
+            this.btnRegistrarProveedor.Text = "Registrar proveedor";
+            this.btnRegistrarProveedor.Tag = "btn_bus_btnRegistrarProveedor";
+            this.btnRegistrarProveedor.UseVisualStyleBackColor = true;
+            this.btnRegistrarProveedor.Enabled = false;
+            this.btnRegistrarProveedor.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left;
+            this.btnRegistrarProveedor.Name = "btnRegistrarProveedor";
+            this.btnRegistrarProveedor.TabIndex = 3;
+            this.btnRegistrarProveedor.Click += new System.EventHandler(this.btnRegistrarProveedor_Click_413BE);
+            this.lbSinProveedores.AutoSize = true;
+            this.lbSinProveedores.Location = new System.Drawing.Point(700, 40);
+            this.lbSinProveedores.Text = "No hay proveedores habilitados para esta categoría";
+            this.lbSinProveedores.Tag = "lb_bus_sinProveedores";
+            this.lbSinProveedores.Visible = false;
+            this.lbSinProveedores.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left;
+            this.lbSinProveedores.Name = "lbSinProveedores";
+            this.lbSinProveedores.TabIndex = 4;
             this.lbReclamoDerivado.AutoSize = true;
             this.lbReclamoDerivado.Location = new System.Drawing.Point(3, 3);
             this.lbReclamoDerivado.Name = "lbReclamoDerivado";
@@ -306,5 +328,7 @@ namespace AppBase
         private System.Windows.Forms.NumericUpDown numSla;
         private System.Windows.Forms.Button btnDerivar;
         private System.Windows.Forms.Label lbReclamoDerivado;
+        private System.Windows.Forms.Button btnRegistrarProveedor;
+        private System.Windows.Forms.Label lbSinProveedores;
     }
 }

@@ -1,0 +1,2 @@
+UmbralRepeticion=3
+Servidor=BARBARA\SQLEXPRESS

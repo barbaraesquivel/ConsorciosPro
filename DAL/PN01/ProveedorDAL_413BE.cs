@@ -48,10 +48,48 @@ namespace DAL
                 "WHERE p.Habilitado_413BE=1 AND pc.IdCategoria_413BE=@cat ORDER BY p.Nombre_413BE", P("@cat", idCategoria)));
         }
 
+        public bool ExisteCuit_413BE(string cuit)
+        {
+            return Convert.ToInt32(AccesoDatos_413BE.Escalar_413BE(
+                "SELECT COUNT(1) FROM PROVEEDOR WHERE Cuit_413BE=@cuit", P("@cuit", cuit))) > 0;
+        }
+
+        public int Insertar_413BE(Proveedor_413BE proveedor)
+        {
+            int id = AccesoDatos_413BE.Insertar_413BE(
+                "INSERT INTO PROVEEDOR (Nombre_413BE, Cuit_413BE, Email_413BE, Habilitado_413BE, Dvh_413BE) VALUES (@nombre, @cuit, @email, 1, 0)",
+                P("@nombre", proveedor.Nombre_413BE), P("@cuit", proveedor.Cuit_413BE), P("@email", proveedor.Email_413BE));
+            foreach (int idCategoria in proveedor.IdsCategorias_413BE)
+            {
+                AccesoDatos_413BE.EjecutarNoQuery_413BE(
+                    "INSERT INTO PROVEEDOR_CATEGORIA (IdProveedor_413BE, IdCategoria_413BE, Dvh_413BE) VALUES (@prov, @cat, 0)",
+                    P("@prov", id), P("@cat", idCategoria));
+            }
+            proveedor.IdProveedor_413BE = id;
+            return id;
+        }
+
         public void ActualizarDvh_413BE(int idProveedor, int dvh)
         {
             AccesoDatos_413BE.EjecutarNoQuery_413BE("UPDATE PROVEEDOR SET Dvh_413BE=@dvh WHERE IdProveedor_413BE=@id",
                 P("@dvh", dvh), P("@id", idProveedor));
+        }
+
+        public Proveedor_413BE ObtenerPorId_413BE(int idProveedor)
+        {
+            List<Proveedor_413BE> lista = MapearProveedores_413BE(AccesoDatos_413BE.Consultar_413BE(
+                "SELECT IdProveedor_413BE, Nombre_413BE, Cuit_413BE, Email_413BE, Habilitado_413BE, Dvh_413BE FROM PROVEEDOR WHERE IdProveedor_413BE=@id",
+                P("@id", idProveedor)));
+            if (lista.Count == 0) throw new InvalidOperationException("No existe el proveedor indicado");
+            return lista[0];
+        }
+
+        public void Actualizar_413BE(Proveedor_413BE proveedor)
+        {
+            AccesoDatos_413BE.EjecutarNoQuery_413BE(
+                "UPDATE PROVEEDOR SET Nombre_413BE=@nombre, Cuit_413BE=@cuit, Email_413BE=@email, Habilitado_413BE=@habilitado WHERE IdProveedor_413BE=@id",
+                P("@nombre", proveedor.Nombre_413BE), P("@cuit", proveedor.Cuit_413BE), P("@email", proveedor.Email_413BE),
+                P("@habilitado", proveedor.Habilitado_413BE), P("@id", proveedor.IdProveedor_413BE));
         }
 
         private const string Agregado =

@@ -131,6 +131,9 @@ namespace BLL
                 ("ADJUNTO", new AdjuntoDAL_413BE().ObtenerTodos_413BE().Cast<IVerificable>().ToList()),
                 ("DERIVACION", new DerivacionDAL_413BE().ObtenerTodos_413BE().Cast<IVerificable>().ToList()),
                 ("CIERRE_RECLAMO", new CierreReclamoDAL_413BE().ObtenerTodos_413BE().Cast<IVerificable>().ToList()),
+                ("PROPUESTA_ASAMBLEA", new PropuestaAsambleaDAL_413BE().ObtenerTodos_413BE().Cast<IVerificable>().ToList()),
+                ("TEMA_PROPUESTO", new TemaPropuestoDAL_413BE().ObtenerTodos_413BE().Cast<IVerificable>().ToList()),
+                ("ORDEN_DIA", new OrdenDelDiaDAL_413BE().ObtenerTodos_413BE().Cast<IVerificable>().ToList()),
             };
         }
 
@@ -152,6 +155,9 @@ namespace BLL
                 case "ADJUNTO": new AdjuntoDAL_413BE().ActualizarDvh_413BE(((Adjunto_413BE)fila).IdAdjunto_413BE, fila.DVH); break;
                 case "DERIVACION": new DerivacionDAL_413BE().ActualizarDvh_413BE(((Derivacion_413BE)fila).IdDerivacion_413BE, fila.DVH); break;
                 case "CIERRE_RECLAMO": new CierreReclamoDAL_413BE().ActualizarDvh_413BE(((CierreReclamo_413BE)fila).IdCierre_413BE, fila.DVH); break;
+                case "PROPUESTA_ASAMBLEA": new PropuestaAsambleaDAL_413BE().ActualizarDvh_413BE(((PropuestaAsamblea_413BE)fila).IdPropuesta_413BE, fila.DVH); break;
+                case "TEMA_PROPUESTO": new TemaPropuestoDAL_413BE().ActualizarDvh_413BE(((TemaPropuesto_413BE)fila).IdTema_413BE, fila.DVH); break;
+                case "ORDEN_DIA": new OrdenDelDiaDAL_413BE().ActualizarDvh_413BE(((OrdenDelDia_413BE)fila).IdOrdenDia_413BE, fila.DVH); break;
             }
         }
 

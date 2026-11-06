@@ -1,3 +1,4 @@
+using System.Transactions;
 using BE;
 using DAL;
 using SER;
@@ -12,6 +13,30 @@ namespace BLL
         public List<Proveedor_413BE> ObtenerTodos_413BE()
         {
             return _proveedorDAL.ObtenerTodos_413BE();
+        }
+
+        public int RegistrarProveedor_413BE(Proveedor_413BE proveedor)
+        {
+            proveedor.Nombre_413BE = (proveedor.Nombre_413BE ?? "").Trim();
+            proveedor.Cuit_413BE = (proveedor.Cuit_413BE ?? "").Trim();
+            proveedor.Email_413BE = (proveedor.Email_413BE ?? "").Trim();
+            if (proveedor.Nombre_413BE.Length == 0 || proveedor.Cuit_413BE.Length == 0 || proveedor.Email_413BE.Length == 0
+                || proveedor.IdsCategorias_413BE == null || proveedor.IdsCategorias_413BE.Count < 1)
+            {
+                throw new ArgumentException(TraduccionAyuda_413BE.Obtener_413BE("ex_proveedorDatosIncompletos", "Complete nombre, CUIT, email y al menos una categoría"));
+            }
+            if (_proveedorDAL.ExisteCuit_413BE(proveedor.Cuit_413BE))
+            {
+                throw new InvalidOperationException(TraduccionAyuda_413BE.Obtener_413BE("ex_proveedorCuitDuplicado", "Ya existe un proveedor registrado con ese CUIT"));
+            }
+            using (TransactionScope transaccion = new TransactionScope())
+            {
+                proveedor.Habilitado_413BE = true;
+                int id = _proveedorDAL.Insertar_413BE(proveedor);
+                new VerificadorBLL().RecalcularDigitosVerificadores();
+                transaccion.Complete();
+                return id;
+            }
         }
 
         public DesempenoProveedor_413BE CalcularDesempeno_413BE(int idProveedor, int idCategoria)
@@ -98,6 +123,62 @@ namespace BLL
                 });
             }
             _exportador.ExportarTabla_413BE("Desempeño de proveedores", encabezados, filas, ruta);
+        }
+
+        public void ModificarProveedor_413BE(Proveedor_413BE proveedor)
+        {
+            proveedor.Nombre_413BE = (proveedor.Nombre_413BE ?? "").Trim();
+            proveedor.Cuit_413BE = (proveedor.Cuit_413BE ?? "").Trim();
+            proveedor.Email_413BE = (proveedor.Email_413BE ?? "").Trim();
+            if (proveedor.Nombre_413BE.Length == 0 || proveedor.Cuit_413BE.Length == 0 || proveedor.Email_413BE.Length == 0)
+            {
+                throw new ArgumentException(TraduccionAyuda_413BE.Obtener_413BE("ex_proveedorDatosIncompletos", "Complete nombre, CUIT, email y al menos una categoría"));
+            }
+            Proveedor_413BE actual = _proveedorDAL.ObtenerPorId_413BE(proveedor.IdProveedor_413BE);
+            if (actual.Cuit_413BE != proveedor.Cuit_413BE && _proveedorDAL.ExisteCuit_413BE(proveedor.Cuit_413BE))
+            {
+                throw new InvalidOperationException(TraduccionAyuda_413BE.Obtener_413BE("ex_proveedorCuitDuplicado", "Ya existe un proveedor registrado con ese CUIT"));
+            }
+            using (TransactionScope transaccion = new TransactionScope())
+            {
+                _proveedorDAL.Actualizar_413BE(proveedor);
+                new VerificadorBLL().RecalcularDigitosVerificadores();
+                transaccion.Complete();
+            }
+        }
+
+        public void InhabilitarProveedor_413BE(int idProveedor)
+        {
+            using (TransactionScope transaccion = new TransactionScope())
+            {
+                Proveedor_413BE proveedor = _proveedorDAL.ObtenerPorId_413BE(idProveedor);
+                proveedor.Habilitado_413BE = false;
+                _proveedorDAL.Actualizar_413BE(proveedor);
+                new VerificadorBLL().RecalcularDigitosVerificadores();
+                transaccion.Complete();
+            }
+        }
+
+        public void HabilitarProveedor_413BE(int idProveedor)
+        {
+            using (TransactionScope transaccion = new TransactionScope())
+            {
+                Proveedor_413BE proveedor = _proveedorDAL.ObtenerPorId_413BE(idProveedor);
+                proveedor.Habilitado_413BE = true;
+                _proveedorDAL.Actualizar_413BE(proveedor);
+                new VerificadorBLL().RecalcularDigitosVerificadores();
+                transaccion.Complete();
+            }
+        }
+
+        public void RestaurarVersion_413BE(Proveedor_413BE proveedor)
+        {
+            using (TransactionScope transaccion = new TransactionScope())
+            {
+                _proveedorDAL.Actualizar_413BE(proveedor);
+                new VerificadorBLL().RecalcularDigitosVerificadores();
+                transaccion.Complete();
+            }
         }
     }
 }

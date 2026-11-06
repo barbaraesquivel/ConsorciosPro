@@ -124,5 +124,31 @@ namespace DAL
             sql.Append(" ORDER BY r.FechaAlta_413BE DESC");
             return MapearLista_413BE(AccesoDatos_413BE.Consultar_413BE(sql.ToString(), parametros.ToArray()));
         }
+
+        public List<TemaPropuesto_413BE> ObtenerGruposReclamos_413BE(int idConsorcio, DateTime desde, DateTime hasta)
+        {
+            DataTable tabla = AccesoDatos_413BE.Consultar_413BE(
+                "SELECT r.IdCategoria_413BE, r.IdUnidadFuncional_413BE, r.AreaComun_413BE, COUNT(*) AS Cantidad, " +
+                "ISNULL(SUM(c.CostoImputado_413BE), 0) AS CostoAcumulado, " +
+                "AVG(CAST(DATEDIFF(DAY, r.FechaAlta_413BE, ISNULL(c.FechaCierre_413BE, GETDATE())) AS FLOAT)) AS TiempoPromedio " +
+                "FROM RECLAMO r LEFT JOIN CIERRE_RECLAMO c ON c.IdReclamo_413BE = r.IdReclamo_413BE " +
+                "WHERE r.IdConsorcio_413BE = @c AND r.FechaAlta_413BE >= @desde AND r.FechaAlta_413BE < @hastaMasUno " +
+                "GROUP BY r.IdCategoria_413BE, r.IdUnidadFuncional_413BE, r.AreaComun_413BE",
+                P("@c", idConsorcio), P("@desde", desde.Date), P("@hastaMasUno", hasta.Date.AddDays(1)));
+            List<TemaPropuesto_413BE> grupos = new List<TemaPropuesto_413BE>();
+            foreach (DataRow fila in tabla.Rows)
+            {
+                TemaPropuesto_413BE t = new TemaPropuesto_413BE();
+                t.IdCategoria_413BE = Convert.ToInt32(fila["IdCategoria_413BE"]);
+                t.IdUnidadFuncional_413BE = fila["IdUnidadFuncional_413BE"] == DBNull.Value ? (int?)null : Convert.ToInt32(fila["IdUnidadFuncional_413BE"]);
+                t.AreaComun_413BE = fila["AreaComun_413BE"] == DBNull.Value ? null : fila["AreaComun_413BE"].ToString();
+                t.CantidadReclamos_413BE = Convert.ToInt32(fila["Cantidad"]);
+                t.CostoAcumulado_413BE = Convert.ToDecimal(fila["CostoAcumulado"]);
+                t.TiempoPromedioAbiertoDias_413BE = Convert.ToDouble(fila["TiempoPromedio"]);
+                t.CostoSolucion_413BE = 0;
+                grupos.Add(t);
+            }
+            return grupos;
+        }
     }
 }

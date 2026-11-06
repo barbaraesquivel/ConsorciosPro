@@ -57,6 +57,13 @@ namespace AppBase
             mnuBuscarDerivarProveedor.Enabled = false;
             mnuCerrarReclamoImputarCosto.Enabled = false;
             mnuConsultarHistorial.Enabled = false;
+            mnuGenerarPropuesta.Enabled = false;
+            mnuDefinirOrdenDia.Enabled = false;
+            mnuConsultarHistorialPropuestas.Enabled = false;
+            mnuSerializarPropuestas.Enabled = false;
+            mnuMantenimientoProveedores_413BE.Enabled = false;
+            mnuBitacoraProveedores_413BE.Enabled = false;
+            mnuMantenimientoConsorcios_413BE.Visible = false;
             foreach (ToolStripItem c in itemsMenu)
             {
                 if (c.Name != "sesiónToolStripMenuItem" && c.Name != "idiomaToolStripMenuItem")
@@ -135,6 +142,37 @@ namespace AppBase
             if (p.Permiso == TipoPatente.GestMantenimientoConsorcios_413BE)
             {
                 mnuMantenimientoConsorcios_413BE.Visible = true;
+                mnuMaestros_413BE.Visible = true;
+            }
+            if (p.Permiso == TipoPatente.GenerarPropuesta_413BE)
+            {
+                mnuGenerarPropuesta.Enabled = true;
+                mnuAsambleas.Visible = true;
+            }
+            if (p.Permiso == TipoPatente.DefinirOrdenDia_413BE)
+            {
+                mnuDefinirOrdenDia.Enabled = true;
+                mnuAsambleas.Visible = true;
+            }
+            if (p.Permiso == TipoPatente.ConsultarHistorialPropuestas_413BE)
+            {
+                mnuConsultarHistorialPropuestas.Enabled = true;
+                mnuAsambleas.Visible = true;
+            }
+            if (p.Permiso == TipoPatente.SerializarPropuestas_413BE)
+            {
+                mnuSerializarPropuestas.Enabled = true;
+                mnuAsambleas.Visible = true;
+            }
+            if (p.Permiso == TipoPatente.MantenimientoProveedores_413BE)
+            {
+                mnuMantenimientoProveedores_413BE.Enabled = true;
+                mnuMaestros_413BE.Visible = true;
+            }
+            if (p.Permiso == TipoPatente.BitacoraProveedores_413BE)
+            {
+                mnuBitacoraProveedores_413BE.Enabled = true;
+                mnuMaestros_413BE.Visible = true;
             }
         }
 
@@ -196,6 +234,36 @@ namespace AppBase
         private void mnuConsultarHistorial_Click_413BE(object sender, EventArgs e)
         {
             AbrirHijo_413BE(new frmHistorialReclamos_413BE());
+        }
+
+        private void mnuGenerarPropuesta_Click_413BE(object sender, EventArgs e)
+        {
+            AbrirHijo_413BE(new frmGenerarPropuesta_413BE());
+        }
+
+        private void mnuDefinirOrdenDia_Click_413BE(object sender, EventArgs e)
+        {
+            AbrirHijo_413BE(new frmDefinirOrdenDia_413BE());
+        }
+
+        private void mnuConsultarHistorialPropuestas_Click_413BE(object sender, EventArgs e)
+        {
+            AbrirHijo_413BE(new frmHistorialPropuestas_413BE());
+        }
+
+        private void mnuSerializarPropuestas_Click_413BE(object sender, EventArgs e)
+        {
+            AbrirHijo_413BE(new frmSerializacionPropuestas_413BE());
+        }
+
+        private void mnuMantenimientoProveedores_Click_413BE(object sender, EventArgs e)
+        {
+            AbrirHijo_413BE(new frmMantenimientoProveedores_413BE());
+        }
+
+        private void mnuBitacoraProveedores_Click_413BE(object sender, EventArgs e)
+        {
+            AbrirHijo_413BE(new frmBitacoraProveedores_413BE());
         }
 
         private void AbrirHijo_413BE(Form formulario)
