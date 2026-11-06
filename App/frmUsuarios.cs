@@ -262,5 +262,20 @@ namespace AppBase
             SessionManager.QuitarObservador(this);
         }
 
+        private void MostrarHabilitarUsuario_413BE(object sender, EventArgs e)
+        {
+            btnHabilitarUsuario_413BE.Visible = mUser != null && mUser.Baja;
+        }
+
+        private void HabilitarUsuario_413BE(object sender, EventArgs e)
+        {
+            if (mUser != null && mUser.Baja)
+            {
+                mUser.Baja = false;
+                _users.Save(mUser);
+            }
+            LoadForm(sender, e);
+        }
+
     }
 }

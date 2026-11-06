@@ -53,6 +53,7 @@
             btnGuardar = new Button();
             btnSalir = new Button();
             btnCancelar = new Button();
+            btnHabilitarUsuario_413BE = new Button();
             lbUsuario = new Label();
             lbBloq = new Label();
             lbUsuarioLog = new Label();
@@ -81,6 +82,7 @@
             dataUsuarios.Size = new Size(550, 850);
             dataUsuarios.TabIndex = 0;
             dataUsuarios.DoubleClick += ElegirUsuario;
+            dataUsuarios.DoubleClick += MostrarHabilitarUsuario_413BE;
             lbUser.AutoSize = true;
             lbUser.Location = new Point(250, 68);
             lbUser.Margin = new Padding(4, 0, 4, 0);
@@ -377,6 +379,16 @@
             btnCancelar.Text = "Cancelar";
             btnCancelar.UseVisualStyleBackColor = true;
             btnCancelar.Click += Cancelar;
+            btnHabilitarUsuario_413BE.Location = new Point(656, 325);
+            btnHabilitarUsuario_413BE.Margin = new Padding(4, 5, 4, 5);
+            btnHabilitarUsuario_413BE.Name = "btnHabilitarUsuario_413BE";
+            btnHabilitarUsuario_413BE.Size = new Size(136, 38);
+            btnHabilitarUsuario_413BE.TabIndex = 28;
+            btnHabilitarUsuario_413BE.Tag = "btn_usu_btnHabilitarUsuario";
+            btnHabilitarUsuario_413BE.Text = "Habilitar usuario";
+            btnHabilitarUsuario_413BE.UseVisualStyleBackColor = true;
+            btnHabilitarUsuario_413BE.Visible = false;
+            btnHabilitarUsuario_413BE.Click += HabilitarUsuario_413BE;
             lbUsuario.AutoSize = true;
             lbUsuario.Location = new Point(590, 957);
             lbUsuario.Margin = new Padding(4, 0, 4, 0);
@@ -410,6 +422,7 @@
             Controls.Add(lbBloq);
             Controls.Add(lbUsuario);
             Controls.Add(btnCancelar);
+            Controls.Add(btnHabilitarUsuario_413BE);
             Controls.Add(btnSalir);
             Controls.Add(btnGuardar);
             Controls.Add(btnAceptar);
@@ -478,6 +491,7 @@
         private Button btnGuardar;
         private Button btnSalir;
         private Button btnCancelar;
+        private Button btnHabilitarUsuario_413BE;
         private DataGridViewTextBoxColumn Permiso;
         private Label lbUsuario;
         private Label lbBloq;
