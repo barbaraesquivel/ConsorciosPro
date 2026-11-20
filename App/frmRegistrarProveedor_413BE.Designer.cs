@@ -125,6 +125,7 @@ namespace AppBase
             this.Text = "Registrar proveedor";
             this.Load += new System.EventHandler(this.frmRegistrarProveedor_Load_413BE);
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.frmRegistrarProveedor_FormClosing_413BE);
+            this.HelpRequested += new System.Windows.Forms.HelpEventHandler(this.frmRegistrarProveedor_HelpRequested_413BE);
             this.ResumeLayout(false);
             this.PerformLayout();
         }

@@ -89,6 +89,7 @@ namespace AppBase
             }
             ActualizarIdioma(SessionManager.Idioma);
             CargarIdiomas();
+            mnuAyuda_413BE.Visible = SessionManager.EstaLogueado();
         }
         private void ValidarPermisos(PermisoCompuesto p)
         {

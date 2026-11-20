@@ -22,7 +22,8 @@ namespace AppBase
 
         public void ActualizarIdioma(IIdioma idioma)
         {
-            frmMdiPrincipal f = (frmMdiPrincipal)(this.MdiParent ?? this.Owner!.MdiParent!);
+            frmMdiPrincipal? f = Application.OpenForms.OfType<frmMdiPrincipal>().FirstOrDefault();
+            if (f == null) return;
             f.CambiarIdiomaFormulario(this, idioma);
         }
 

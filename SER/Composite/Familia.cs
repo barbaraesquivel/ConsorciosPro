@@ -11,6 +11,7 @@ namespace SER.Composite
 {
     public class Familia : PermisoCompuesto, IPermiso
     {
+        //lista de permisos
         private IList<IPermiso> _hijos;        
         public Familia()
         {

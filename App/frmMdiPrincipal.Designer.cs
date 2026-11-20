@@ -42,6 +42,7 @@
             mnuMaestros_413BE = new ToolStripMenuItem();
             mnuMantenimientoProveedores_413BE = new ToolStripMenuItem();
             mnuBitacoraProveedores_413BE = new ToolStripMenuItem();
+            mnuAyuda_413BE = new ToolStripMenuItem();
             lbdeslog_1 = new Label();
             lbdeslog_2 = new Label();
             menuPrincipal.SuspendLayout();
@@ -195,6 +196,14 @@
             mnuBitacoraProveedores_413BE.Text = "Bitácora de cambios de proveedores";
             mnuBitacoraProveedores_413BE.Tag = "lb_bitacoraProveedores";
             mnuBitacoraProveedores_413BE.Click += mnuBitacoraProveedores_Click_413BE;
+            menuPrincipal.Items.Add(mnuAyuda_413BE);
+            mnuAyuda_413BE.Alignment = ToolStripItemAlignment.Right;
+            mnuAyuda_413BE.Name = "mnuAyuda_413BE";
+            mnuAyuda_413BE.ShortcutKeys = Keys.F1;
+            mnuAyuda_413BE.Text = "?";
+            mnuAyuda_413BE.Visible = false;
+            mnuAyuda_413BE.Click += mnuAyuda_Click_413BE;
+            idiomaToolStripMenuItem.DropDownItemClicked += idioma_DropDownItemClicked_413BE;
             lbdeslog_1.AutoSize = true;
             lbdeslog_1.Location = new Point(1458, 868);
             lbdeslog_1.Name = "lbdeslog_1";
@@ -225,6 +234,7 @@
             WindowState = FormWindowState.Maximized;
             FormClosing += frmMdiPrincipal_FormClosing;
             Load += frmMdiPrincipal_Load;
+            MdiChildActivate += frmMdiPrincipal_MdiChildActivate_413BE;
             menuPrincipal.ResumeLayout(false);
             menuPrincipal.PerformLayout();
             ResumeLayout(false);
@@ -261,5 +271,6 @@
         private System.Windows.Forms.ToolStripMenuItem mnuMaestros_413BE;
         private System.Windows.Forms.ToolStripMenuItem mnuMantenimientoProveedores_413BE;
         private System.Windows.Forms.ToolStripMenuItem mnuBitacoraProveedores_413BE;
+        private System.Windows.Forms.ToolStripMenuItem mnuAyuda_413BE;
     }
 }
