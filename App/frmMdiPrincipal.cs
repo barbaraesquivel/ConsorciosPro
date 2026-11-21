@@ -175,6 +175,10 @@ namespace AppBase
                 mnuBitacoraProveedores_413BE.Enabled = true;
                 mnuMaestros_413BE.Visible = true;
             }
+            if (p.Permiso == TipoPatente.ReporteGlobal_413BE)
+            {
+                mnuReporteGlobal_413BE.Visible = true;
+            }
         }
 
         private void EditarFamilias(object sender, EventArgs e)

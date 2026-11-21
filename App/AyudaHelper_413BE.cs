@@ -13,6 +13,7 @@ namespace AppBase
             { nameof(frmRegistrarProveedor_413BE), "rec_registrarProv" },
             { nameof(frmCerrarReclamo_413BE), "rec_cerrar" },
             { nameof(frmHistorialReclamos_413BE), "rec_historial" },
+            { nameof(frmReporteGlobal_413BE), "rec_reporteGlobal" },
             { nameof(frmGenerarPropuesta_413BE), "asa_generar" },
             { nameof(frmDefinirOrdenDia_413BE), "asa_orden" },
             { nameof(frmHistorialPropuestas_413BE), "asa_historial" },

@@ -76,6 +76,15 @@ namespace BLL
                 "En Desempeño histórico por proveedor elija un proveedor, presione Ver desempeño y, si quiere, Exportar desempeño a PDF.",
                 "Errores comunes: La fecha desde no puede ser posterior a la fecha hasta.",
             }),
+            ("rec", "rec_reporteGlobal", "Reporte Global", new[]
+            {
+                "Analiza los reclamos por consorcio y categoría: cantidad, cerrados, porcentaje de resolución, costos, días de cierre y proveedor principal.",
+                "Elija las fechas desde y hasta del reclamo y, si quiere, un consorcio (Todos por defecto), y presione Generar.",
+                "El porcentaje de resolución es cerrados sobre total; el costo promedio y los días promedio se calculan sobre los reclamos cerrados.",
+                "Las filas en rojo tienen menor porcentaje de resolución o mayor tiempo promedio de cierre que el total general; la columna Indicador dice cuál.",
+                "El gráfico muestra el costo total imputado por categoría. Exportar a PDF genera el Reporte Global con la tabla, los totales y el gráfico.",
+                "Errores comunes: La fecha desde no puede ser posterior a la fecha hasta.",
+            }),
             ("asa", "asa_generar", "Generar propuesta", new[]
             {
                 "Propone temas para la asamblea agrupando los reclamos repetidos de un consorcio.",
@@ -183,6 +192,13 @@ namespace BLL
 
         private static readonly (string Formulario_413BE, string Control_413BE, string Clave_413BE, string Texto_413BE)[] _tooltips_413BE =
         {
+            ("frmReporteGlobal_413BE", "dtpDesde_413BE", "tt_repglo_dtpDesde", "Fecha de alta del reclamo desde la que se analiza"),
+            ("frmReporteGlobal_413BE", "dtpHasta_413BE", "tt_repglo_dtpHasta", "Fecha de alta del reclamo hasta la que se analiza"),
+            ("frmReporteGlobal_413BE", "cboConsorcio_413BE", "tt_repglo_cboConsorcio", "Consorcio a analizar (Todos por defecto)"),
+            ("frmReporteGlobal_413BE", "btnGenerar_413BE", "tt_repglo_btnGenerar", "Calcula el Reporte Global con los filtros elegidos"),
+            ("frmReporteGlobal_413BE", "btnExportar_413BE", "tt_repglo_btnExportar", "Guarda el Reporte Global en PDF con la tabla y el gráfico"),
+            ("frmReporteGlobal_413BE", "dgvReporte_413BE", "tt_repglo_dgvReporte", "En rojo: resolución menor o cierre más lento que el total general"),
+            ("frmReporteGlobal_413BE", "picGrafico_413BE", "tt_repglo_picGrafico", "Costo total imputado por categoría"),
             ("frmCargarClasificarReclamo_413BE", "cboConsorcio", "tt_car_cboConsorcio", "Consorcio donde se produjo el problema"),
             ("frmCargarClasificarReclamo_413BE", "rdoUnidadFuncional", "tt_car_rdoUnidadFuncional", "Elija si el reclamo es de una unidad funcional"),
             ("frmCargarClasificarReclamo_413BE", "rdoAreaComun", "tt_car_rdoAreaComun", "Elija si el reclamo es de un área común"),

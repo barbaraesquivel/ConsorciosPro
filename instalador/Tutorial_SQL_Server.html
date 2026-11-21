@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Consorcios Pro - Tutorial de SQL Server</title>
+<style>
+body{font-family:Segoe UI,Arial,sans-serif;max-width:820px;margin:24px auto;padding:0 16px;line-height:1.55;color:#1f2933;background:#fff}
+h1{font-size:1.6rem;margin-bottom:4px} h2{font-size:1.2rem;margin-top:32px;border-bottom:1px solid #d5dbe1;padding-bottom:4px}
+code{background:#eef1f4;padding:1px 5px;border-radius:3px} pre{background:#eef1f4;padding:10px 12px;border-radius:4px;overflow:auto}
+.nota{background:#fff7e0;border-left:4px solid #e0a800;padding:8px 12px;margin:12px 0}
+.ok{background:#e7f6ec;border-left:4px solid #2e9e5b;padding:8px 12px;margin:12px 0}
+table{border-collapse:collapse;width:100%} td,th{border:1px solid #d5dbe1;padding:6px 8px;text-align:left;vertical-align:top}
+@media(prefers-color-scheme:dark){body{background:#12161a;color:#e3e8ec} code,pre{background:#222a31} td,th,h2{border-color:#3a444d}
+.nota{background:#3a3115}.ok{background:#173a26}}
+</style></head><body>
+<h1>Tutorial de contingencia: SQL Server para Consorcios Pro</h1>
+<p>Esta guia sirve cuando el instalador no encuentra SQL Server, no puede conectarse o no puede crear la base de datos
+<code>AppBaseDB</code>. Funciona sin conexion a Internet y se puede imprimir.</p>
+
+<h2>1. Que necesita Consorcios Pro</h2>
+<ul>
+<li>Una instancia de <b>SQL Server</b> (2016 o posterior; Express alcanza) en ejecucion.</li>
+<li>Un usuario de Windows con permiso para <b>crear la base</b> (o una base vacia <code>AppBaseDB</code> creada por el encargado, con ese usuario como <i>db_owner</i>).</li>
+<li>La aplicacion usa <b>autenticacion de Windows</b>: no hay usuario ni contrasena de SQL.</li>
+</ul>
+
+<h2>2. Que opcion me conviene</h2>
+<table>
+<tr><th>Situacion</th><th>Que hacer</th></tr>
+<tr><td>El equipo ya tiene SQL Server (lo habitual en la sala)</td><td>En el instalador elija la instancia de la lista o escriba su nombre (ver seccion 4).</td></tr>
+<tr><td>No hay SQL Server y tiene permisos de administrador</td><td>Instale <b>SQL Server LocalDB</b> (seccion 3) o <b>SQL Server Express</b> (seccion 5).</td></tr>
+<tr><td>No hay SQL Server y no es administrador</td><td>Pida al encargado que instale SQL Server Express, o use otra PC.</td></tr>
+</table>
+
+<h2>3. Opcion rapida: SQL Server LocalDB</h2>
+<ol>
+<li>En el instalador, en la pagina <b>Servidor de base de datos</b>, presione <b>Instalar SQL Server LocalDB</b> (aparece solo si el instalador lo incluye).</li>
+<li>Windows pedira permiso de administrador solo para ese paso. Acepte y espere a que termine.</li>
+<li>El servidor queda seleccionado como <code>(localdb)\MSSQLLocalDB</code>.</li>
+</ol>
+<div class="nota"><b>Importante:</b> LocalDB es privado de cada usuario de Windows. La base queda en el perfil del usuario que instalo; otro usuario del equipo no vera esos datos.</div>
+<p>Si el instalador no lo incluye, bajelo del sitio de Microsoft (busque &laquo;SQL Server 2022 Express LocalDB&raquo;) e instalelo con el archivo <code>SqlLocalDB.msi</code>.</p>
+
+<h2>4. Como saber el nombre de la instancia</h2>
+<ol>
+<li>Presione <b>Windows + R</b>, escriba <code>services.msc</code> y Enter.</li>
+<li>Busque servicios que empiecen con <b>SQL Server (...)</b>. El texto entre parentesis es el nombre de la instancia.</li>
+</ol>
+<table>
+<tr><th>Servicio</th><th>Nombre a escribir en el instalador</th></tr>
+<tr><td>SQL Server (SQLEXPRESS)</td><td><code>.\SQLEXPRESS</code> (tambien <code>localhost\SQLEXPRESS</code>)</td></tr>
+<tr><td>SQL Server (MSSQLSERVER)</td><td><code>.</code> o <code>localhost</code></td></tr>
+<tr><td>SQL Server (otro nombre)</td><td><code>.\otro_nombre</code></td></tr>
+</table>
+<p>Si el estado del servicio es <b>Detenido</b>, clic derecho &rarr; <b>Iniciar</b> (el instalador tambien lo intenta, pero en una PC compartida puede no tener permiso).</p>
+
+<h2>5. Instalar SQL Server Express (requiere administrador)</h2>
+<ol>
+<li>Descargue <b>SQL Server 2022 Express</b> desde microsoft.com (busque &laquo;SQL Server Express descargar&raquo;).</li>
+<li>Ejecute el instalador y elija el tipo <b>Basica</b>. Acepte la licencia y la carpeta por defecto.</li>
+<li>Al terminar, anote el nombre de la instancia que muestra (normalmente <code>SQLEXPRESS</code>).</li>
+<li>Vuelva a ejecutar el instalador de Consorcios Pro y use <code>.\SQLEXPRESS</code>.</li>
+</ol>
+
+<h2>6. Problemas frecuentes</h2>
+<table>
+<tr><th>Mensaje o sintoma</th><th>Causa probable y solucion</th></tr>
+<tr><td>No se pudo conectar con el servidor</td><td>Nombre mal escrito o servicio detenido. Revise la seccion 4. Si el servidor esta en otra PC, pruebe con su nombre completo.</td></tr>
+<tr><td>El usuario no puede crear bases de datos</td><td>Pida al encargado que cree una base vacia llamada <code>AppBaseDB</code> y agregue su usuario de Windows como <i>db_owner</i>. Luego vuelva a ejecutar el instalador: solo carga las tablas y los datos.</td></tr>
+<tr><td>La base AppBaseDB ya existe pero esta desactualizada o incompleta</td><td>Si es una base de prueba: en SSMS (o con <code>sqlcmd</code>) ejecute <code>DROP DATABASE AppBaseDB</code> y vuelva a instalar. El instalador hizo antes un backup en la carpeta de backups de la instancia.</td></tr>
+<tr><td>El servicio esta detenido y no puedo iniciarlo</td><td>Pida a un administrador que lo inicie desde <code>services.msc</code>.</td></tr>
+<tr><td>Error &laquo;El nombre de objeto PROPUESTA_ASAMBLEA no es valido&raquo; al abrir la aplicacion</td><td>La base se creo con una version vieja del script. Borre la base de prueba y reinstale.</td></tr>
+<tr><td>Cambie de servidor despues de instalar</td><td>Edite <code>Configuracion_413BE.txt</code> (carpeta de instalacion) y corrija la linea <code>Servidor=...</code>. No hace falta reinstalar.</td></tr>
+</table>
+
+<h2>7. Crear la base a mano (ultimo recurso)</h2>
+<p>El script esta en la carpeta de instalacion, dentro de <code>BaseDeDatos\AppBaseDB_Instalacion_Sala.sql</code>. Con SQL Server Management Studio: abra el archivo, conectese a la instancia y presione <b>Ejecutar</b>. Por linea de comandos:</p>
+<pre>sqlcmd -S .\SQLEXPRESS -E -f 65001 -i "AppBaseDB_Instalacion_Sala.sql"</pre>
+<div class="ok">Despues, configure <code>Servidor=.\SQLEXPRESS</code> en <code>Configuracion_413BE.txt</code> y abra la aplicacion.</div>
+
+<h2>8. Donde estan los registros</h2>
+<ul>
+<li>Registro del instalador de la base: <code>Documentos\ConsorciosPro_instalacion.log</code></li>
+<li>Instalacion de LocalDB (si se uso): lo informa el propio instalador de Windows.</li>
+</ul>
+<p>Si pide ayuda, adjunte ese archivo: indica el servidor usado, el paso que fallo y el mensaje de SQL Server.</p>
+</body></html>

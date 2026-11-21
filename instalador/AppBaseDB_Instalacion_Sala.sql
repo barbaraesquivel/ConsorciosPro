@@ -1,0 +1,5816 @@
+﻿-- =====================================================================
+-- Consorcios Pro - Script de instalacion COMPLETO de la base AppBaseDB
+-- Incluye: base y seguridad (PN01), propuestas de asamblea y serializacion (PN02),
+-- mantenimiento y bitacora de cambios de proveedores (T06.B: tabla PROVEEDOR_C y trigger).
+-- Esta pensado para una instalacion NUEVA: el instalador no lo ejecuta si AppBaseDB ya tiene tablas.
+-- Version para el instalador: sin opciones propias de una version puntual de SQL Server.
+-- =====================================================================
+
+
+-- 1. Base de datos
+USE [master]
+GO
+IF DB_ID(N'AppBaseDB') IS NULL
+    CREATE DATABASE [AppBaseDB]
+GO
+-- Opciones de base: se dejan los valores por defecto de la instancia (compatible con cualquier version de SQL Server)
+BEGIN TRY
+    ALTER DATABASE [AppBaseDB] SET RECOVERY SIMPLE
+END TRY
+BEGIN CATCH
+    PRINT N'No se pudo fijar el modo de recuperacion (se mantiene el de la instancia).'
+END CATCH
+GO
+USE [AppBaseDB]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+-- 2. Tablas de seguridad, idiomas y bitacora
+CREATE TABLE [dbo].[Bitacora](
+	[Bitacora_ID] [uniqueidentifier] NOT NULL,
+	[Bitacora_FechaHora] [datetime] NOT NULL,
+	[Bitacora_UsuarioID] [uniqueidentifier] NULL,
+	[Bitacora_Actividad] [nvarchar](200) NOT NULL,
+	[Bitacora_EntidadId] [nvarchar](100) NULL,
+	[Bitacora_Detalle] [nvarchar](max) NULL,
+ CONSTRAINT [PK_Bitacora] PRIMARY KEY CLUSTERED 
+(
+	[Bitacora_ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+CREATE TABLE [dbo].[Etiqueta](
+	[Etiqueta_ID] [nvarchar](50) NOT NULL,
+	[Etiqueta_Descripcion] [nvarchar](50) NULL,
+ CONSTRAINT [PK_Etiqueta] PRIMARY KEY CLUSTERED 
+(
+	[Etiqueta_ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+CREATE TABLE [dbo].[Familia_Patente](
+	[Padre_ID] [nvarchar](50) NOT NULL,
+	[Hijo_ID] [nvarchar](50) NOT NULL
+) ON [PRIMARY]
+GO
+CREATE TABLE [dbo].[Idioma](
+	[Idioma_ID] [nvarchar](50) NOT NULL,
+	[Idioma_Descripcion] [nvarchar](50) NULL,
+	[Idioma_Default] [bit] NULL,
+ CONSTRAINT [PK_Idioma] PRIMARY KEY CLUSTERED 
+(
+	[Idioma_ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+CREATE TABLE [dbo].[Permiso](
+	[Permiso_ID] [nvarchar](50) NOT NULL,
+	[Permiso_Descripcion] [nvarchar](50) NULL,
+	[Permiso_Tipo] [int] NULL,
+ CONSTRAINT [PK_Permiso] PRIMARY KEY CLUSTERED 
+(
+	[Permiso_ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+CREATE TABLE [dbo].[Traduccion](
+	[Etiqueta_ID] [nvarchar](50) NOT NULL,
+	[Idioma_ID] [nvarchar](50) NULL,
+	[Traduccion_Traduccion] [nvarchar](300) NULL
+) ON [PRIMARY]
+GO
+CREATE TABLE [dbo].[Usuario](
+	[Usuario_ID] [nvarchar](50) NOT NULL,
+	[Usuario_User] [nvarchar](50) NULL,
+	[Usuario_Pass] [nvarchar](max) NULL,
+	[Usuario_Bloq] [bit] NULL,
+	[Usuario_Baja] [bit] NULL,
+	[Usuario_DVH] [int] NULL,
+ CONSTRAINT [PK_Usuario] PRIMARY KEY CLUSTERED 
+(
+	[Usuario_ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+CREATE TABLE [dbo].[Usuario_Permiso](
+	[Permiso_ID] [nvarchar](50) NOT NULL,
+	[Usuario_ID] [nvarchar](50) NOT NULL
+) ON [PRIMARY]
+GO
+
+-- 3. Tablas de negocio de PN01
+CREATE TABLE [dbo].[CONSORCIO] (
+    [IdConsorcio_413BE] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_CONSORCIO] PRIMARY KEY,
+    [Nombre_413BE] NVARCHAR(150) NOT NULL,
+    [Direccion_413BE] NVARCHAR(200) NOT NULL,
+    [CantidadUnidades_413BE] INT NOT NULL,
+    [Activo_413BE] BIT NOT NULL CONSTRAINT [DF_CONSORCIO_Activo] DEFAULT 1,
+    [Dvh_413BE] INT NOT NULL CONSTRAINT [DF_CONSORCIO_Dvh] DEFAULT 0
+);
+GO
+CREATE TABLE [dbo].[UNIDAD_FUNCIONAL] (
+    [IdUnidadFuncional_413BE] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_UNIDAD_FUNCIONAL] PRIMARY KEY,
+    [IdConsorcio_413BE] INT NOT NULL CONSTRAINT [FK_UF_CONSORCIO] REFERENCES [dbo].[CONSORCIO]([IdConsorcio_413BE]),
+    [Identificador_413BE] NVARCHAR(50) NOT NULL,
+    [Tipo_413BE] NVARCHAR(50) NOT NULL,
+    [Activa_413BE] BIT NOT NULL,
+    [Dvh_413BE] INT NOT NULL CONSTRAINT [DF_UNIDAD_FUNCIONAL_Dvh] DEFAULT 0
+);
+GO
+CREATE TABLE [dbo].[CONSORCISTA] (
+    [IdConsorcista_413BE] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_CONSORCISTA] PRIMARY KEY,
+    [IdUnidadFuncional_413BE] INT NOT NULL CONSTRAINT [FK_CONSORCISTA_UF] REFERENCES [dbo].[UNIDAD_FUNCIONAL]([IdUnidadFuncional_413BE]),
+    [Dni_413BE] NVARCHAR(20) NOT NULL,
+    [Nombre_413BE] NVARCHAR(150) NOT NULL,
+    [Email_413BE] NVARCHAR(150) NOT NULL,
+    [EsPropietario_413BE] BIT NOT NULL,
+    [Activo_413BE] BIT NOT NULL CONSTRAINT [DF_CONSORCISTA_Activo] DEFAULT 1,
+    [Dvh_413BE] INT NOT NULL CONSTRAINT [DF_CONSORCISTA_Dvh] DEFAULT 0
+);
+GO
+CREATE TABLE [dbo].[CATEGORIA] (
+    [IdCategoria_413BE] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_CATEGORIA] PRIMARY KEY,
+    [Nombre_413BE] NVARCHAR(100) NOT NULL,
+    [Dvh_413BE] INT NOT NULL CONSTRAINT [DF_CATEGORIA_Dvh] DEFAULT 0
+);
+GO
+CREATE TABLE [dbo].[PROVEEDOR] (
+    [IdProveedor_413BE] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_PROVEEDOR] PRIMARY KEY,
+    [Nombre_413BE] NVARCHAR(150) NOT NULL,
+    [Cuit_413BE] NVARCHAR(20) NOT NULL,
+    [Email_413BE] NVARCHAR(150) NOT NULL,
+    [Habilitado_413BE] BIT NOT NULL,
+    [Dvh_413BE] INT NOT NULL CONSTRAINT [DF_PROVEEDOR_Dvh] DEFAULT 0
+);
+GO
+CREATE TABLE [dbo].[PROVEEDOR_CATEGORIA] (
+    [IdProveedor_413BE] INT NOT NULL CONSTRAINT [FK_PC_PROVEEDOR] REFERENCES [dbo].[PROVEEDOR]([IdProveedor_413BE]),
+    [IdCategoria_413BE] INT NOT NULL CONSTRAINT [FK_PC_CATEGORIA] REFERENCES [dbo].[CATEGORIA]([IdCategoria_413BE]),
+    [Dvh_413BE] INT NOT NULL CONSTRAINT [DF_PROVEEDOR_CATEGORIA_Dvh] DEFAULT 0,
+    CONSTRAINT [PK_PROVEEDOR_CATEGORIA] PRIMARY KEY ([IdProveedor_413BE], [IdCategoria_413BE])
+);
+GO
+CREATE TABLE [dbo].[RECLAMO] (
+    [IdReclamo_413BE] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_RECLAMO] PRIMARY KEY,
+    [IdConsorcio_413BE] INT NOT NULL CONSTRAINT [FK_RECLAMO_CONSORCIO] REFERENCES [dbo].[CONSORCIO]([IdConsorcio_413BE]),
+    [IdConsorcista_413BE] INT NOT NULL CONSTRAINT [FK_RECLAMO_CONSORCISTA] REFERENCES [dbo].[CONSORCISTA]([IdConsorcista_413BE]),
+    [IdCategoria_413BE] INT NOT NULL CONSTRAINT [FK_RECLAMO_CATEGORIA] REFERENCES [dbo].[CATEGORIA]([IdCategoria_413BE]),
+    [IdUnidadFuncional_413BE] INT NULL CONSTRAINT [FK_RECLAMO_UF] REFERENCES [dbo].[UNIDAD_FUNCIONAL]([IdUnidadFuncional_413BE]),
+    [AreaComun_413BE] NVARCHAR(100) NULL,
+    [IdReclamoOriginal_413BE] INT NULL CONSTRAINT [FK_RECLAMO_ORIGINAL] REFERENCES [dbo].[RECLAMO]([IdReclamo_413BE]),
+    [Descripcion_413BE] NVARCHAR(1000) NOT NULL,
+    [FechaAlta_413BE] DATETIME NOT NULL,
+    [Estado_413BE] NVARCHAR(50) NOT NULL,
+    [Prioridad_413BE] NVARCHAR(50) NULL,
+    [TipoImputacion_413BE] NVARCHAR(50) NULL,
+    [Reincidente_413BE] BIT NOT NULL,
+    [Dvh_413BE] INT NOT NULL CONSTRAINT [DF_RECLAMO_Dvh] DEFAULT 0,
+    CONSTRAINT [CK_RECLAMO_UBICACION] CHECK (
+        ([IdUnidadFuncional_413BE] IS NULL AND [AreaComun_413BE] IS NOT NULL)
+        OR ([IdUnidadFuncional_413BE] IS NOT NULL AND [AreaComun_413BE] IS NULL))
+);
+GO
+CREATE TABLE [dbo].[ADJUNTO] (
+    [IdAdjunto_413BE] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_ADJUNTO] PRIMARY KEY,
+    [IdReclamo_413BE] INT NOT NULL CONSTRAINT [FK_ADJUNTO_RECLAMO] REFERENCES [dbo].[RECLAMO]([IdReclamo_413BE]),
+    [NombreArchivo_413BE] NVARCHAR(260) NOT NULL,
+    [Tipo_413BE] NVARCHAR(50) NOT NULL,
+    [Dvh_413BE] INT NOT NULL CONSTRAINT [DF_ADJUNTO_Dvh] DEFAULT 0
+);
+GO
+CREATE TABLE [dbo].[DERIVACION] (
+    [IdDerivacion_413BE] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_DERIVACION] PRIMARY KEY,
+    [IdReclamo_413BE] INT NOT NULL CONSTRAINT [UQ_DERIVACION_RECLAMO] UNIQUE CONSTRAINT [FK_DERIVACION_RECLAMO] REFERENCES [dbo].[RECLAMO]([IdReclamo_413BE]),
+    [IdProveedor_413BE] INT NOT NULL CONSTRAINT [FK_DERIVACION_PROVEEDOR] REFERENCES [dbo].[PROVEEDOR]([IdProveedor_413BE]),
+    [FechaDerivacion_413BE] DATETIME NOT NULL,
+    [PlazoSlaDias_413BE] INT NOT NULL,
+    [Dvh_413BE] INT NOT NULL CONSTRAINT [DF_DERIVACION_Dvh] DEFAULT 0
+);
+GO
+CREATE TABLE [dbo].[CIERRE_RECLAMO] (
+    [IdCierre_413BE] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_CIERRE_RECLAMO] PRIMARY KEY,
+    [IdReclamo_413BE] INT NOT NULL CONSTRAINT [UQ_CIERRE_RECLAMO] UNIQUE CONSTRAINT [FK_CIERRE_RECLAMO] REFERENCES [dbo].[RECLAMO]([IdReclamo_413BE]),
+    [FechaCierre_413BE] DATETIME NOT NULL,
+    [InformeResolucion_413BE] NVARCHAR(2000) NOT NULL,
+    [NumeroFactura_413BE] NVARCHAR(50) NOT NULL,
+    [CuentaImputada_413BE] NVARCHAR(200) NOT NULL,
+    [CostoImputado_413BE] DECIMAL(18,2) NOT NULL,
+    [Dvh_413BE] INT NOT NULL CONSTRAINT [DF_CIERRE_RECLAMO_Dvh] DEFAULT 0
+);
+GO
+
+-- 4. Tabla de control del digito verificador vertical
+CREATE TABLE [dbo].[DigitoVerificadorVertical](
+	[DVV_ID] [uniqueidentifier] NOT NULL,
+	[DVV_Tabla] [nvarchar](100) NOT NULL,
+	[DVV_Atributo] [nvarchar](100) NOT NULL,
+	[DVV_Valor] [int] NOT NULL,
+	[DVV_FechaCalculo] [datetime] NOT NULL,
+ CONSTRAINT [PK_DigitoVerificadorVertical] PRIMARY KEY CLUSTERED 
+(
+	[DVV_ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+-- 5. Datos base: idiomas, patentes y familias del sistema, usuarios y traducciones del sistema base
+INSERT [dbo].[Idioma] ([Idioma_ID], [Idioma_Descripcion], [Idioma_Default]) VALUES (N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Español', 1)
+INSERT [dbo].[Idioma] ([Idioma_ID], [Idioma_Descripcion], [Idioma_Default]) VALUES (N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Inglés', 0)
+GO
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'27b3f0bd-6c96-4e03-b0ab-a2ca218200a0', N'GestBackup', 4)
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'28a2317f-4de7-4976-8810-bf9fc517c6ea', N'Admin', NULL)
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'36ba3111-3d42-4766-9c54-542f17a247b2', N'BasicoAdmin', NULL)
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'5BBB22C9-99FC-4A3F-AC0A-CA25AF2157AE', N'GestBitacora', 5)
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'7acb2457-162c-480e-85bb-c444d223d1ab', N'GestPermisos', 1)
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'b226e845-3ae7-42fd-809a-77a5f1f0ebf1', N'GestUsuarios', 2)
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'ce0d646b-f902-472d-8c00-b94f4a026ae9', N'GestIdiomas', 3)
+GO
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'28a2317f-4de7-4976-8810-bf9fc517c6ea', N'7acb2457-162c-480e-85bb-c444d223d1ab')
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'28a2317f-4de7-4976-8810-bf9fc517c6ea', N'b226e845-3ae7-42fd-809a-77a5f1f0ebf1')
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'28a2317f-4de7-4976-8810-bf9fc517c6ea', N'ce0d646b-f902-472d-8c00-b94f4a026ae9')
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'28a2317f-4de7-4976-8810-bf9fc517c6ea', N'27b3f0bd-6c96-4e03-b0ab-a2ca218200a0')
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'36ba3111-3d42-4766-9c54-542f17a247b2', N'27b3f0bd-6c96-4e03-b0ab-a2ca218200a0')
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'36ba3111-3d42-4766-9c54-542f17a247b2', N'ce0d646b-f902-472d-8c00-b94f4a026ae9')
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'28A2317F-4DE7-4976-8810-BF9FC517C6EA', N'5BBB22C9-99FC-4A3F-AC0A-CA25AF2157AE')
+GO
+INSERT [dbo].[Usuario] ([Usuario_ID], [Usuario_User], [Usuario_Pass], [Usuario_Bloq], [Usuario_Baja], [Usuario_DVH]) VALUES (N'42d88568-a6ab-4d41-a377-a242d7b3fef7', N'adminbasic', N'240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 0, 0, 56)
+INSERT [dbo].[Usuario] ([Usuario_ID], [Usuario_User], [Usuario_Pass], [Usuario_Bloq], [Usuario_Baja], [Usuario_DVH]) VALUES (N'b9c09721-83e1-4874-9bb2-58d8f4520248', N'asd', N'688787d8ff144c502c7f5cffaafe2cc588d86079f9de88304c26b0cb99ce91c6', 0, 1, 64)
+INSERT [dbo].[Usuario] ([Usuario_ID], [Usuario_User], [Usuario_Pass], [Usuario_Bloq], [Usuario_Baja], [Usuario_DVH]) VALUES (N'ce8ba34d-afa4-4c84-8738-96ceb2e87c00', N'admin', N'240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 0, 0, 8)
+GO
+INSERT [dbo].[Usuario_Permiso] ([Permiso_ID], [Usuario_ID]) VALUES (N'28a2317f-4de7-4976-8810-bf9fc517c6ea', N'ce8ba34d-afa4-4c84-8738-96ceb2e87c00')
+GO
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'044dfdb4-a803-4624-b938-c95472d8f276', N'lb_familias')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'068e9177-a7f1-4e97-8f57-c5c9627676e6', N'lb_backupRestore')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'06AA4364-4352-43D7-8173-3BF64875217E', N'lb_integridadRecalcularConfirm')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'0B3CF967-73F9-439F-83AC-D3BC4AA99F38', N'lb_integridadRecalcularError')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'10D71AA6-D825-40EE-B73C-257BA29B53CB', N'lb_desde')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'1146F046-85D8-4443-9842-5483A6F2EFCC', N'lb_integridadPersiste')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'115c9fd3-47d0-4715-9699-f28b5bffd357', N'btn_salir')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'1aaa3f4d-009e-4d18-b76e-60b132be738b', N'lb_usuario_log')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'209CFCCD-809D-4E6E-8C24-643D09976D89', N'lb_export_error')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'20f739fa-e437-4dab-9257-cdbb1ae9bb78', N'btn_desbloquear')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'23107bd3-f511-4c84-9528-a11346bfc11a', N'lb_Idioma')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'24f3d6ab-d835-4285-a744-826eafe88c17', N'lb_CerrarSesion')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'2820e73c-a8ee-4501-80a9-afc59df9a834', N'btn_bloquear')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'2b94590e-8a9c-4182-8ae1-7371185d361d', N'lb_permisos_fam')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'2C0315A3-3621-4543-AA61-446AE74E8630', N'lb_todos')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'2f05d59e-dc83-43c9-91a3-cb69639e915b', N'lb_traduccion')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'2fe3b25e-b141-42b2-a828-25cd7b3bff62', N'lb_bienvenido')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'317E213B-D157-401C-9765-1CEE2AA20C72', N'lb_integridadDescripcion')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'34CA2F3F-95DF-40E0-BA65-E1810511D0E5', N'lb_fecha')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'3509f38e-8ca7-4e76-9965-98d08a712980', N'lb_sesion')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'38738E04-7253-4722-8A18-88043FC2A043', N'btn_integridadRestaurar')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'3c986b89-004d-45c2-8a0b-ce3c35b21c0b', N'btn_backup')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'3cd4d8e2-ea17-4352-91f8-ef681c8116cf', N'lb_patentes')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'40dadff1-b6f3-466c-b456-b2c6613484bc', N'btn_cancelar')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'41952A9A-C1DE-473F-88FE-BCF475691B30', N'btn_buscar')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'4372bca4-aade-4ee5-97ea-d3e3e322d6c8', N'lb_baseDeDatos')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'4AE03DC9-C8A0-40C4-9FC0-EF966B33A1DF', N'lb_detalle')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'4c545932-afc9-4ea9-ba6b-d0580924c806', N'lb_NombreFamilia')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'531c74e5-eac9-4288-b5e3-980881e4b943', N'lb_restoreError')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'565E23F4-CF82-4CB8-AD2C-F3D1BA56EA1D', N'chk_filtrar_fecha')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'58a8ff7c-6ae4-4aa1-8f6d-d694cbf26855', N'lb_NuevoIdioma')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'5E5F5093-2D4C-4BDE-836D-ACBEF33750FF', N'lb_hasta')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'62BCF934-59E1-4286-B325-22488502A2B5', N'lb_integridadRestoreConfirm')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'6605dc45-7368-47cf-8e0a-3929bd541fbf', N'btn_crear')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'6C3A7ED0-92BE-4063-AF35-D5E58FCD9AD4', N'lb_sistema_no_disponible')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'6D139769-6072-49C3-8FF2-C540F058CB47', N'lb_integridadSesionInvalida')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'7158a7d7-b9ef-46f0-9b73-28ea04cd142f', N'btn_restaurar')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'73E1E71C-7CAB-45CF-8EA9-0568AE83BCE1', N'lb_export_ok')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'75a09cab-44e7-4bc4-bd7b-a9d16a947989', N'lb_pass')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'75f3ce77-b54a-4254-9d28-332683b46bf4', N'lb_Usuarios')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'7651A2F6-BBB0-491E-B46B-A717953D3753', N'lb_integridadColFila')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'793b0d56-4d6d-4c4c-a4c7-6359f44e523e', N'btn_guardar')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'84362c84-7d8f-43c4-99c1-21736e439846', N'btn_nuevo_user')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'85A02EE5-8726-4596-90F9-7BBDE9237913', N'lb_actividad')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'89c4777b-288c-4084-a170-2c1044ec94a6', N'lb_permisos_user')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'8a7e1826-55b4-4171-8f21-8afa5a5efc14', N'lb_Usuario')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'8B3100D4-CD43-48F8-ABE4-5B9436975589', N'btn_integridadRecalcular')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'8F15AC4F-2295-4CE9-A566-71DAF3B65677', N'lb_integridadTablaCompleta')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'900bf7bf-0c0e-4d6b-be6a-16172b1f8f32', N'btn_ingresar')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'9bf705d7-364c-4fc2-a0c3-7d853a1e143c', N'btn_nueva_fam')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'a76564e8-e6fe-4c07-86bb-8f0a89895310', N'lb_completar')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'a948ecff-cdcd-4f02-8c33-7db69e9b553e', N'lb_email')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'AC35DA3F-D420-45BE-B6DF-A479C63AD02C', N'lb_integridadTitulo')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'AF1F9627-6E0A-4272-9138-7AB0CA18F6FC', N'btn_exportar_csv')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'b109db41-318f-40ca-8084-09bc1f196f2d', N'lb_principal')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'B8BB1004-8AF1-404E-A12F-44F5A68ED6DD', N'lb_integridadColTabla')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'bc494311-5884-4ff7-a230-ac602a95ed32', N'lb_backupError')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'cc81b6ed-1384-4183-8fda-7d19a60951bb', N'lb_usuario_incorrecto')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'CD76E8DF-7509-4024-A0B2-1D97E5FD8768', N'lb_id')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'cf2b5ee7-50cb-4d2b-9549-375be52ccc22', N'lb_IniciarSesion')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'CFCFCD38-A935-47D1-9342-90690835715C', N'btn_integridadCancelar')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'd40e4b79-90cf-481f-a310-72a06a08b5d4', N'btn_aceptar')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'd5bd301a-da9c-4e40-89e1-44817f341b6a', N'lb_TraduccionPara')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'd5d12fb0-128d-48b4-8b1b-4c768aa2f8ea', N'lb_permisos')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'd6a04a0d-f84d-4b58-97ea-4968a3909ad1', N'btn_agregar')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'da5b66ac-2cdb-41d5-8b71-2cdca5c30b4e', N'btn_quitar')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'dc58600a-8a57-495a-9b65-6baf164212e1', N'lb_pass_incorrecta')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'df1322c5-eb73-4b17-9132-0a85049c0591', N'lb_backupOk')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'df550ea4-4f4d-405f-bf5a-4d17b450683e', N'lb_original')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'E03CC91B-B0E9-4122-81E2-5E6FBCB14E90', N'lb_bitacora')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'E5F99194-923F-49E5-8DE6-710A91AAB47E', N'lb_usuario_baja')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'E634B6ED-1020-4D33-9FE5-96CF644F8136', N'lb_integridadColCampos')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'e6f0a916-06d3-425f-8692-b936ce37fadc', N'lb_restoreOk')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'e7b080a3-22ca-4017-813b-b66cbf37c7a8', N'lb_usuario_bloqueado')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'e939cc14-7b57-466f-92e1-6a4e98fbadb1', N'lb_deslog_1')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'e9d5634d-f72a-4864-b775-c73185f03293', N'lb_restoreConfirm')
+INSERT [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion]) VALUES (N'f49742e2-de65-48ea-b8e2-77e249626f97', N'btn_editar_datos')
+GO
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'a948ecff-cdcd-4f02-8c33-7db69e9b553e', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Email')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'a948ecff-cdcd-4f02-8c33-7db69e9b553e', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'E-mail')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'900bf7bf-0c0e-4d6b-be6a-16172b1f8f32', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Ingresar')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'900bf7bf-0c0e-4d6b-be6a-16172b1f8f32', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Enter')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'115c9fd3-47d0-4715-9699-f28b5bffd357', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Salir')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'115c9fd3-47d0-4715-9699-f28b5bffd357', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Exit')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'75a09cab-44e7-4bc4-bd7b-a9d16a947989', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Contraseña')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'75a09cab-44e7-4bc4-bd7b-a9d16a947989', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Password')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'2fe3b25e-b141-42b2-a828-25cd7b3bff62', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Bienvenido')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'2fe3b25e-b141-42b2-a828-25cd7b3bff62', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Welcome')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'cc81b6ed-1384-4183-8fda-7d19a60951bb', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Usuario Incorrecto')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'cc81b6ed-1384-4183-8fda-7d19a60951bb', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Incorrect User')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'dc58600a-8a57-495a-9b65-6baf164212e1', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Contraseña Incorrecta')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'dc58600a-8a57-495a-9b65-6baf164212e1', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Incorrect Password')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'e7b080a3-22ca-4017-813b-b66cbf37c7a8', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Usuario Bloqueado')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'e7b080a3-22ca-4017-813b-b66cbf37c7a8', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Blocked User')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'3509f38e-8ca7-4e76-9965-98d08a712980', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Sesión')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'3509f38e-8ca7-4e76-9965-98d08a712980', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Session')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'cf2b5ee7-50cb-4d2b-9549-375be52ccc22', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Iniciar Sesión')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'cf2b5ee7-50cb-4d2b-9549-375be52ccc22', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Log In')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'24f3d6ab-d835-4285-a744-826eafe88c17', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Cerrar Sesión')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'24f3d6ab-d835-4285-a744-826eafe88c17', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Log Out')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'75f3ce77-b54a-4254-9d28-332683b46bf4', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Usuarios')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'75f3ce77-b54a-4254-9d28-332683b46bf4', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Users')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'044dfdb4-a803-4624-b938-c95472d8f276', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Familias')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'044dfdb4-a803-4624-b938-c95472d8f276', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Families')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'23107bd3-f511-4c84-9528-a11346bfc11a', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Idioma')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'23107bd3-f511-4c84-9528-a11346bfc11a', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Language')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'58a8ff7c-6ae4-4aa1-8f6d-d694cbf26855', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Nuevo Idioma')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'58a8ff7c-6ae4-4aa1-8f6d-d694cbf26855', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'New Language')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'e939cc14-7b57-466f-92e1-6a4e98fbadb1', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'¿Quiere salir?')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'e939cc14-7b57-466f-92e1-6a4e98fbadb1', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Do you want to exit?')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'20f739fa-e437-4dab-9257-cdbb1ae9bb78', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Desbloquear')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'20f739fa-e437-4dab-9257-cdbb1ae9bb78', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Unlock')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'f49742e2-de65-48ea-b8e2-77e249626f97', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Editar Datos')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'f49742e2-de65-48ea-b8e2-77e249626f97', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Edit')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'2820e73c-a8ee-4501-80a9-afc59df9a834', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Bloquear')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'2820e73c-a8ee-4501-80a9-afc59df9a834', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Block')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'84362c84-7d8f-43c4-99c1-21736e439846', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Nuevo Usuario')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'84362c84-7d8f-43c4-99c1-21736e439846', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'New User')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'89c4777b-288c-4084-a170-2c1044ec94a6', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Permisos Usuario')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'89c4777b-288c-4084-a170-2c1044ec94a6', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'User Permissions')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'2b94590e-8a9c-4182-8ae1-7371185d361d', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Permisos de la Familia')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'2b94590e-8a9c-4182-8ae1-7371185d361d', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Family Permissions')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'3cd4d8e2-ea17-4352-91f8-ef681c8116cf', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Patentes')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'3cd4d8e2-ea17-4352-91f8-ef681c8116cf', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Patents')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'da5b66ac-2cdb-41d5-8b71-2cdca5c30b4e', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Quitar-->')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'da5b66ac-2cdb-41d5-8b71-2cdca5c30b4e', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Remove-->')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'd6a04a0d-f84d-4b58-97ea-4968a3909ad1', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'<--Agregar')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'd6a04a0d-f84d-4b58-97ea-4968a3909ad1', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'<--Add')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'd5d12fb0-128d-48b4-8b1b-4c768aa2f8ea', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Permisos')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'd5d12fb0-128d-48b4-8b1b-4c768aa2f8ea', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Permissions')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'd40e4b79-90cf-481f-a310-72a06a08b5d4', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Aceptar')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'd40e4b79-90cf-481f-a310-72a06a08b5d4', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Ok')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'793b0d56-4d6d-4c4c-a4c7-6359f44e523e', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Guardar')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'793b0d56-4d6d-4c4c-a4c7-6359f44e523e', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Save')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'40dadff1-b6f3-466c-b456-b2c6613484bc', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Cancelar')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'40dadff1-b6f3-466c-b456-b2c6613484bc', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Cancel')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'8a7e1826-55b4-4171-8f21-8afa5a5efc14', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Usuario')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'8a7e1826-55b4-4171-8f21-8afa5a5efc14', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'User')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'1aaa3f4d-009e-4d18-b76e-60b132be738b', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Usuario Logueado')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'1aaa3f4d-009e-4d18-b76e-60b132be738b', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Logged User')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'9bf705d7-364c-4fc2-a0c3-7d853a1e143c', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Nueva Familia')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'9bf705d7-364c-4fc2-a0c3-7d853a1e143c', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'New Family')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'6605dc45-7368-47cf-8e0a-3929bd541fbf', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Crear')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'6605dc45-7368-47cf-8e0a-3929bd541fbf', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Create')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'4c545932-afc9-4ea9-ba6b-d0580924c806', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Nombre de la Familia')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'4c545932-afc9-4ea9-ba6b-d0580924c806', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Family Name')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'df550ea4-4f4d-405f-bf5a-4d17b450683e', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Original')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'df550ea4-4f4d-405f-bf5a-4d17b450683e', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Original')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'2f05d59e-dc83-43c9-91a3-cb69639e915b', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Traduccion')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'2f05d59e-dc83-43c9-91a3-cb69639e915b', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Translation')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'a76564e8-e6fe-4c07-86bb-8f0a89895310', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Completar idioma')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'a76564e8-e6fe-4c07-86bb-8f0a89895310', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Complete Language')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'd5bd301a-da9c-4e40-89e1-44817f341b6a', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Traduccion para')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'd5bd301a-da9c-4e40-89e1-44817f341b6a', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Translation for')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'b109db41-318f-40ca-8084-09bc1f196f2d', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Principal')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'b109db41-318f-40ca-8084-09bc1f196f2d', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Main')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'4372bca4-aade-4ee5-97ea-d3e3e322d6c8', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Base de Datos')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'4372bca4-aade-4ee5-97ea-d3e3e322d6c8', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Database')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'068e9177-a7f1-4e97-8f57-c5c9627676e6', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Backup / Restaurar')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'068e9177-a7f1-4e97-8f57-c5c9627676e6', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Backup / Restore')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'3c986b89-004d-45c2-8a0b-ce3c35b21c0b', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Hacer Backup')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'3c986b89-004d-45c2-8a0b-ce3c35b21c0b', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Make Backup')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'7158a7d7-b9ef-46f0-9b73-28ea04cd142f', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Restaurar')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'7158a7d7-b9ef-46f0-9b73-28ea04cd142f', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Restore')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'df1322c5-eb73-4b17-9132-0a85049c0591', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Backup realizado con exito')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'df1322c5-eb73-4b17-9132-0a85049c0591', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Backup completed successfully')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'bc494311-5884-4ff7-a230-ac602a95ed32', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Error al realizar el backup')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'bc494311-5884-4ff7-a230-ac602a95ed32', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Error performing backup')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'e6f0a916-06d3-425f-8692-b936ce37fadc', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Base de datos restaurada con exito')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'e6f0a916-06d3-425f-8692-b936ce37fadc', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Database restored successfully')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'531c74e5-eac9-4288-b5e3-980881e4b943', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Error al restaurar la base de datos')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'531c74e5-eac9-4288-b5e3-980881e4b943', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'Error restoring database')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'e9d5634d-f72a-4864-b775-c73185f03293', N'66cbf8f7-3eaa-4aea-bd95-2ba8dc234db7', N'Esta accion reemplaza los datos actuales. Desea continuar?')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'e9d5634d-f72a-4864-b775-c73185f03293', N'6ff0850f-7318-4270-aaf4-3b24c9223b37', N'This action replaces the current data. Do you want to continue?')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'AC35DA3F-D420-45BE-B6DF-A479C63AD02C', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Resolución de integridad')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'AC35DA3F-D420-45BE-B6DF-A479C63AD02C', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Integrity resolution')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'317E213B-D157-401C-9765-1CEE2AA20C72', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Se detectó una inconsistencia en los datos (posible manipulación fuera del sistema). Elija cómo resolverla:')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'317E213B-D157-401C-9765-1CEE2AA20C72', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'An inconsistency was detected in the data (possible manipulation outside the system). Choose how to resolve it:')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'38738E04-7253-4722-8A18-88043FC2A043', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Restaurar desde backup')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'38738E04-7253-4722-8A18-88043FC2A043', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Restore from backup')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'8B3100D4-CD43-48F8-ABE4-5B9436975589', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Recalcular dígitos verificadores')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'8B3100D4-CD43-48F8-ABE4-5B9436975589', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Recalculate check digits')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'CFCFCD38-A935-47D1-9342-90690835715C', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Cancelar')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'CFCFCD38-A935-47D1-9342-90690835715C', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Cancel')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'62BCF934-59E1-4286-B325-22488502A2B5', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Esta acción reemplaza los datos actuales por los del backup. ¿Desea continuar?')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'62BCF934-59E1-4286-B325-22488502A2B5', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'This action replaces the current data with the backup data. Do you want to continue?')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'06AA4364-4352-43D7-8173-3BF64875217E', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Se tomarán como válidos los datos actuales y se recalcularán los dígitos verificadores. ¿Desea continuar?')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'06AA4364-4352-43D7-8173-3BF64875217E', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'The current data will be taken as valid and the check digits will be recalculated. Do you want to continue?')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'0B3CF967-73F9-439F-83AC-D3BC4AA99F38', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Error al recalcular los dígitos verificadores')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'0B3CF967-73F9-439F-83AC-D3BC4AA99F38', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Error recalculating the check digits')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'1146F046-85D8-4443-9842-5483A6F2EFCC', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'La integridad de los datos sigue fallando. Revise el detalle y elija otra acción.')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'1146F046-85D8-4443-9842-5483A6F2EFCC', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'The data integrity check is still failing. Review the details and choose another action.')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'6D139769-6072-49C3-8FF2-C540F058CB47', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'El backup restaurado no contiene al administrador actual. Debe iniciar sesión nuevamente.')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'6D139769-6072-49C3-8FF2-C540F058CB47', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'The restored backup does not contain the current administrator. You must log in again.')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'8F15AC4F-2295-4CE9-A566-71DAF3B65677', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'(tabla completa)')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'8F15AC4F-2295-4CE9-A566-71DAF3B65677', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'(entire table)')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'6C3A7ED0-92BE-4063-AF35-D5E58FCD9AD4', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'El sistema no está disponible en este momento
+Contacte con un Administrador.')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'6C3A7ED0-92BE-4063-AF35-D5E58FCD9AD4', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'The system is not available right now.
+Contact an Administrator.')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'E5F99194-923F-49E5-8DE6-710A91AAB47E', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Usuario Dado de Baja')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'E5F99194-923F-49E5-8DE6-710A91AAB47E', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'User Deactivated')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'E03CC91B-B0E9-4122-81E2-5E6FBCB14E90', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Bitácora')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'E03CC91B-B0E9-4122-81E2-5E6FBCB14E90', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Audit Log')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'565E23F4-CF82-4CB8-AD2C-F3D1BA56EA1D', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Filtrar por fecha')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'565E23F4-CF82-4CB8-AD2C-F3D1BA56EA1D', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Filter by date')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'10D71AA6-D825-40EE-B73C-257BA29B53CB', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Desde')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'10D71AA6-D825-40EE-B73C-257BA29B53CB', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'From')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'5E5F5093-2D4C-4BDE-836D-ACBEF33750FF', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Hasta')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'5E5F5093-2D4C-4BDE-836D-ACBEF33750FF', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'To')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'85A02EE5-8726-4596-90F9-7BBDE9237913', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Actividad')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'85A02EE5-8726-4596-90F9-7BBDE9237913', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Activity')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'41952A9A-C1DE-473F-88FE-BCF475691B30', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Buscar')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'41952A9A-C1DE-473F-88FE-BCF475691B30', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Search')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'AF1F9627-6E0A-4272-9138-7AB0CA18F6FC', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Exportar CSV')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'AF1F9627-6E0A-4272-9138-7AB0CA18F6FC', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Export CSV')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'34CA2F3F-95DF-40E0-BA65-E1810511D0E5', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Fecha')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'34CA2F3F-95DF-40E0-BA65-E1810511D0E5', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Date')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'4AE03DC9-C8A0-40C4-9FC0-EF966B33A1DF', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Detalle')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'4AE03DC9-C8A0-40C4-9FC0-EF966B33A1DF', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Detail')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'2C0315A3-3621-4543-AA61-446AE74E8630', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'(Todos)')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'2C0315A3-3621-4543-AA61-446AE74E8630', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'(All)')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'73E1E71C-7CAB-45CF-8EA9-0568AE83BCE1', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Exportación realizada con éxito')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'73E1E71C-7CAB-45CF-8EA9-0568AE83BCE1', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Export completed successfully')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'209CFCCD-809D-4E6E-8C24-643D09976D89', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Error al exportar')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'209CFCCD-809D-4E6E-8C24-643D09976D89', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Error exporting')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'CD76E8DF-7509-4024-A0B2-1D97E5FD8768', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Id')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'CD76E8DF-7509-4024-A0B2-1D97E5FD8768', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Id')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'B8BB1004-8AF1-404E-A12F-44F5A68ED6DD', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Tabla')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'B8BB1004-8AF1-404E-A12F-44F5A68ED6DD', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Table')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'7651A2F6-BBB0-491E-B46B-A717953D3753', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Fila (clave primaria)')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'7651A2F6-BBB0-491E-B46B-A717953D3753', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Row (primary key)')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'E634B6ED-1020-4D33-9FE5-96CF644F8136', N'66CBF8F7-3EAA-4AEA-BD95-2BA8DC234DB7', N'Campos con falla')
+INSERT [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion]) VALUES (N'E634B6ED-1020-4D33-9FE5-96CF644F8136', N'6FF0850F-7318-4270-AAF4-3B24C9223B37', N'Failing fields')
+GO
+
+-- 6. Patentes y familias de PN01 y del ABM de maestros
+-- Patentes de PN01 y familia "Gestor de consorcios"
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1011', N'Cargar y clasificar reclamo', 6)
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1012', N'Buscar y derivar proveedor', 7)
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1013', N'Cerrar reclamo e imputar costo', 8)
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1014', N'Consultar historial', 9)
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001', N'Gestor de consorcios', NULL)
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001', N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1011')
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001', N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1012')
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001', N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1013')
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001', N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1014')
+-- ABM de maestros: patente "Mantenimiento de consorcios", otorgada a la familia "Admin"
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1021', N'Mantenimiento de consorcios', 10)
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'28a2317f-4de7-4976-8810-bf9fc517c6ea', N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1021')
+-- Usuario Gestor (contrasena: gestor123) con la familia "Gestor de consorcios"
+INSERT [dbo].[Usuario] ([Usuario_ID], [Usuario_User], [Usuario_Pass], [Usuario_Bloq], [Usuario_Baja], [Usuario_DVH]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1002', N'Gestor', N'18f2b94d784d03c222cb7c47148cdb8457f1ef3eaf3e317711f25d55747f6a35', 0, 0, 77)
+INSERT [dbo].[Usuario_Permiso] ([Permiso_ID], [Usuario_ID]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001', N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1002')
+GO
+
+-- 7. Etiquetas y traducciones de PN01 y del ABM de maestros
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_car_grpCarga')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_car_grpCarga');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cargar reclamo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_car_grpCarga' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Load complaint' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_car_grpCarga' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_car_lblConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_car_lblConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Building' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_car_lblUbicacion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_car_lblUbicacion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ubicación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblUbicacion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Location' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblUbicacion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'rdo_car_rdoUnidadFuncional')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'rdo_car_rdoUnidadFuncional');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Unidad funcional' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'rdo_car_rdoUnidadFuncional' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Unit' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'rdo_car_rdoUnidadFuncional' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'rdo_car_rdoAreaComun')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'rdo_car_rdoAreaComun');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Área común' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'rdo_car_rdoAreaComun' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Common area' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'rdo_car_rdoAreaComun' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_car_lblConsorcista')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_car_lblConsorcista');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcista' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblConsorcista' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Resident' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblConsorcista' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_car_lblCategoria')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_car_lblCategoria');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Categoría' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblCategoria' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Category' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblCategoria' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_car_lblDescripcion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_car_lblDescripcion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Descripción' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblDescripcion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Description' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblDescripcion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_car_lblFotos')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_car_lblFotos');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Fotos (opcional)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblFotos' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Photos (optional)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblFotos' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_car_btnAdjuntarFoto')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_car_btnAdjuntarFoto');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Adjuntar foto' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_car_btnAdjuntarFoto' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Attach photo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_car_btnAdjuntarFoto' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_car_btnGuardar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_car_btnGuardar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Guardar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_car_btnGuardar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Save' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_car_btnGuardar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_car_grpPendientes')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_car_grpPendientes');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Reclamos pendientes de clasificación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_car_grpPendientes' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Complaints pending classification' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_car_grpPendientes' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_car_dgvPendientesColId')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_car_dgvPendientesColId');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_car_dgvPendientesColId' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_car_dgvPendientesColId' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_car_dgvPendientesColFechaAlta')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_car_dgvPendientesColFechaAlta');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Fecha de alta' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_car_dgvPendientesColFechaAlta' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Creation date' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_car_dgvPendientesColFechaAlta' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_car_dgvPendientesColConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_car_dgvPendientesColConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_car_dgvPendientesColConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Building' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_car_dgvPendientesColConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_car_dgvPendientesColUbicacion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_car_dgvPendientesColUbicacion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ubicación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_car_dgvPendientesColUbicacion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Location' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_car_dgvPendientesColUbicacion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_car_dgvPendientesColCategoria')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_car_dgvPendientesColCategoria');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Categoría' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_car_dgvPendientesColCategoria' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Category' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_car_dgvPendientesColCategoria' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_car_dgvPendientesColEstado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_car_dgvPendientesColEstado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Estado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_car_dgvPendientesColEstado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Status' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_car_dgvPendientesColEstado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_car_grpClasificacion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_car_grpClasificacion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Clasificar reclamo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_car_grpClasificacion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Classify complaint' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_car_grpClasificacion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_car_lblDatosReclamo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_car_lblDatosReclamo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Datos del reclamo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblDatosReclamo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Complaint data' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblDatosReclamo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_car_lblCategoriaClasificacion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_car_lblCategoriaClasificacion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Categoría' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblCategoriaClasificacion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Category' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblCategoriaClasificacion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_car_lblTipoImputacion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_car_lblTipoImputacion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Tipo de imputación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblTipoImputacion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Charge type' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblTipoImputacion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_car_lblPrioridad')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_car_lblPrioridad');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Prioridad' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblPrioridad' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Priority' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_lblPrioridad' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_car_btnClasificar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_car_btnClasificar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Clasificar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_car_btnClasificar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Classify' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_car_btnClasificar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_bus_grpReclamos')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_bus_grpReclamos');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Reclamos clasificados' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_bus_grpReclamos' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Classified complaints' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_bus_grpReclamos' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bus_dgvReclamosColId')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bus_dgvReclamosColId');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvReclamosColId' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvReclamosColId' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bus_dgvReclamosColFechaAlta')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bus_dgvReclamosColFechaAlta');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Fecha de alta' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvReclamosColFechaAlta' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Creation date' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvReclamosColFechaAlta' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bus_dgvReclamosColConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bus_dgvReclamosColConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvReclamosColConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Building' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvReclamosColConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bus_dgvReclamosColCategoria')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bus_dgvReclamosColCategoria');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Categoría' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvReclamosColCategoria' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Category' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvReclamosColCategoria' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bus_dgvReclamosColPrioridad')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bus_dgvReclamosColPrioridad');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Prioridad' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvReclamosColPrioridad' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Priority' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvReclamosColPrioridad' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bus_dgvReclamosColTipoImputacion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bus_dgvReclamosColTipoImputacion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Tipo de imputación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvReclamosColTipoImputacion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Charge type' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvReclamosColTipoImputacion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_bus_grpProveedores')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_bus_grpProveedores');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Proveedores habilitados' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_bus_grpProveedores' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Enabled providers' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_bus_grpProveedores' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bus_dgvProveedoresColProveedor')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bus_dgvProveedoresColProveedor');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Proveedor' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvProveedoresColProveedor' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Provider' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvProveedoresColProveedor' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bus_dgvProveedoresColPrecioPromedio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bus_dgvProveedoresColPrecioPromedio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Precio promedio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvProveedoresColPrecioPromedio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Average price' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvProveedoresColPrecioPromedio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bus_dgvProveedoresColTiempoPromedio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bus_dgvProveedoresColTiempoPromedio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Tiempo promedio (días)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvProveedoresColTiempoPromedio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Average time (days)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvProveedoresColTiempoPromedio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bus_dgvProveedoresColTasaReincidencia')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bus_dgvProveedoresColTasaReincidencia');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Tasa de reincidencia (%)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvProveedoresColTasaReincidencia' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Repeat rate (%)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bus_dgvProveedoresColTasaReincidencia' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'tab_bus_tpMejorPrecio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'tab_bus_tpMejorPrecio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Mejor precio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'tab_bus_tpMejorPrecio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Best price' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'tab_bus_tpMejorPrecio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'tab_bus_tpRecomendado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'tab_bus_tpRecomendado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Recomendado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'tab_bus_tpRecomendado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Recommended' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'tab_bus_tpRecomendado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'tab_bus_tpMasRapido')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'tab_bus_tpMasRapido');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Más rápido' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'tab_bus_tpMasRapido' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Fastest' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'tab_bus_tpMasRapido' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'tab_bus_tpMasEficiente')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'tab_bus_tpMasEficiente');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Más eficiente' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'tab_bus_tpMasEficiente' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Most efficient' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'tab_bus_tpMasEficiente' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_bus_grpDerivacion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_bus_grpDerivacion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Derivación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_bus_grpDerivacion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Referral' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_bus_grpDerivacion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_bus_lblSla')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_bus_lblSla');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Plazo de resolución (SLA), en días' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_bus_lblSla' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Resolution deadline (SLA), in days' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_bus_lblSla' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_bus_btnDerivar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_bus_btnDerivar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Derivar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_bus_btnDerivar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Refer' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_bus_btnDerivar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_cie_grpDerivados')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_cie_grpDerivados');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Reclamos derivados' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_cie_grpDerivados' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Referred complaints' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_cie_grpDerivados' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_cie_dgvDerivadosColId')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_cie_dgvDerivadosColId');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_cie_dgvDerivadosColId' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_cie_dgvDerivadosColId' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_cie_dgvDerivadosColFechaAlta')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_cie_dgvDerivadosColFechaAlta');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Fecha de alta' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_cie_dgvDerivadosColFechaAlta' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Creation date' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_cie_dgvDerivadosColFechaAlta' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_cie_dgvDerivadosColConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_cie_dgvDerivadosColConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_cie_dgvDerivadosColConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Building' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_cie_dgvDerivadosColConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_cie_dgvDerivadosColCategoria')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_cie_dgvDerivadosColCategoria');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Categoría' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_cie_dgvDerivadosColCategoria' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Category' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_cie_dgvDerivadosColCategoria' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_cie_dgvDerivadosColPrioridad')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_cie_dgvDerivadosColPrioridad');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Prioridad' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_cie_dgvDerivadosColPrioridad' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Priority' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_cie_dgvDerivadosColPrioridad' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_cie_dgvDerivadosColTipoImputacion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_cie_dgvDerivadosColTipoImputacion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Tipo de imputación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_cie_dgvDerivadosColTipoImputacion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Charge type' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_cie_dgvDerivadosColTipoImputacion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_cie_grpCierre')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_cie_grpCierre');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cierre del reclamo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_cie_grpCierre' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Complaint closing' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_cie_grpCierre' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_cie_lblDatosReclamo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_cie_lblDatosReclamo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Datos del reclamo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cie_lblDatosReclamo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Complaint data' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cie_lblDatosReclamo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_cie_lblInforme')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_cie_lblInforme');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Informe de resolución' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cie_lblInforme' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Resolution report' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cie_lblInforme' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_cie_lblNumeroFactura')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_cie_lblNumeroFactura');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Número de factura (opcional)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cie_lblNumeroFactura' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Invoice number (optional)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cie_lblNumeroFactura' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_cie_lblCosto')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_cie_lblCosto');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Costo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cie_lblCosto' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cost' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cie_lblCosto' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_cie_btnCerrarReclamo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_cie_btnCerrarReclamo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cerrar reclamo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_cie_btnCerrarReclamo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Close complaint' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_cie_btnCerrarReclamo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_cie_grpImputacion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_cie_grpImputacion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Imputación resultante' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_cie_grpImputacion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Resulting charge' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_cie_grpImputacion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_cie_lblCuentaTitulo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_cie_lblCuentaTitulo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cuenta imputada:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cie_lblCuentaTitulo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Account charged:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cie_lblCuentaTitulo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_cie_lblMontoTitulo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_cie_lblMontoTitulo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Monto a imputar:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cie_lblMontoTitulo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Amount to charge:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cie_lblMontoTitulo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_cie_btnConfirmarCierre')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_cie_btnConfirmarCierre');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Confirmar cierre' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_cie_btnConfirmarCierre' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Confirm closing' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_cie_btnConfirmarCierre' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_cie_btnCancelar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_cie_btnCancelar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cancelar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_cie_btnCancelar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cancel' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_cie_btnCancelar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_his_grpFiltros')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_his_grpFiltros');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Filtros' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_his_grpFiltros' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Filters' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_his_grpFiltros' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_his_lblConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_his_lblConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_his_lblConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Building' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_his_lblConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_his_lblProveedor')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_his_lblProveedor');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Proveedor' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_his_lblProveedor' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Provider' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_his_lblProveedor' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_his_lblCategoria')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_his_lblCategoria');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Categoría' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_his_lblCategoria' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Category' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_his_lblCategoria' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_his_lblEstado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_his_lblEstado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Estado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_his_lblEstado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Status' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_his_lblEstado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_his_lblDesde')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_his_lblDesde');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Desde' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_his_lblDesde' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'From' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_his_lblDesde' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_his_lblHasta')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_his_lblHasta');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Hasta' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_his_lblHasta' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'To' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_his_lblHasta' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_his_btnFiltrar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_his_btnFiltrar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Filtrar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_his_btnFiltrar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Filter' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_his_btnFiltrar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_his_grpHistorial')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_his_grpHistorial');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Historial de reclamos' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_his_grpHistorial' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Complaint history' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_his_grpHistorial' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_his_dgvReclamosColId')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_his_dgvReclamosColId');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColId' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColId' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_his_dgvReclamosColFechaAlta')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_his_dgvReclamosColFechaAlta');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Fecha de alta' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColFechaAlta' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Creation date' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColFechaAlta' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_his_dgvReclamosColConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_his_dgvReclamosColConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Building' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_his_dgvReclamosColCategoria')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_his_dgvReclamosColCategoria');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Categoría' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColCategoria' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Category' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColCategoria' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_his_dgvReclamosColEstado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_his_dgvReclamosColEstado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Estado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColEstado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Status' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColEstado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_his_dgvReclamosColPrioridad')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_his_dgvReclamosColPrioridad');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Prioridad' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColPrioridad' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Priority' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColPrioridad' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_his_dgvReclamosColTipoImputacion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_his_dgvReclamosColTipoImputacion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Tipo de imputación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColTipoImputacion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Charge type' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColTipoImputacion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_his_dgvReclamosColReincidente')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_his_dgvReclamosColReincidente');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Reincidente' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColReincidente' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Repeat' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColReincidente' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_his_dgvReclamosColDescripcion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_his_dgvReclamosColDescripcion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Descripción' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColDescripcion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Description' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvReclamosColDescripcion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_his_btnExportarHistorial')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_his_btnExportarHistorial');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Exportar historial' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_his_btnExportarHistorial' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Export history' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_his_btnExportarHistorial' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_his_grpDesempeno')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_his_grpDesempeno');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Desempeño histórico por proveedor' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_his_grpDesempeno' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Historical performance by provider' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_his_grpDesempeno' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_his_dgvDesempenoColProveedor')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_his_dgvDesempenoColProveedor');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Proveedor' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvDesempenoColProveedor' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Provider' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvDesempenoColProveedor' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_his_dgvDesempenoColCategoria')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_his_dgvDesempenoColCategoria');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Categoría' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvDesempenoColCategoria' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Category' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvDesempenoColCategoria' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_his_dgvDesempenoColPrecioPromedio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_his_dgvDesempenoColPrecioPromedio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Precio promedio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvDesempenoColPrecioPromedio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Average price' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvDesempenoColPrecioPromedio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_his_dgvDesempenoColTiempoPromedio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_his_dgvDesempenoColTiempoPromedio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Tiempo promedio (días)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvDesempenoColTiempoPromedio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Average time (days)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvDesempenoColTiempoPromedio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_his_dgvDesempenoColTasaReincidencia')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_his_dgvDesempenoColTasaReincidencia');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Tasa de reincidencia (%)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvDesempenoColTasaReincidencia' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Repeat rate (%)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvDesempenoColTasaReincidencia' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_his_dgvDesempenoColReclamosResueltos')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_his_dgvDesempenoColReclamosResueltos');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Reclamos resueltos' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvDesempenoColReclamosResueltos' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Resolved complaints' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_his_dgvDesempenoColReclamosResueltos' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_his_btnExportarDesempeno')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_his_btnExportarDesempeno');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Exportar desempeño' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_his_btnExportarDesempeno' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Export performance' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_his_btnExportarDesempeno' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_his_lblProveedorDesempeno')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_his_lblProveedorDesempeno');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Proveedor' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_his_lblProveedorDesempeno' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Provider' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_his_lblProveedorDesempeno' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_his_btnVerDesempeno')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_his_btnVerDesempeno');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ver desempeño' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_his_btnVerDesempeno' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'View performance' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_his_btnVerDesempeno' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'tab_man_tpConsorcios')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'tab_man_tpConsorcios');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcios' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'tab_man_tpConsorcios' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Buildings' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'tab_man_tpConsorcios' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'tab_man_tpUnidadesFuncionales')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'tab_man_tpUnidadesFuncionales');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Unidades funcionales' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'tab_man_tpUnidadesFuncionales' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Units' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'tab_man_tpUnidadesFuncionales' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'tab_man_tpConsorcistas')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'tab_man_tpConsorcistas');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcistas' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'tab_man_tpConsorcistas' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Residents' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'tab_man_tpConsorcistas' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_man_dgvConsorciosColId')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_man_dgvConsorciosColId');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorciosColId' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorciosColId' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_man_dgvConsorciosColNombre')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_man_dgvConsorciosColNombre');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Nombre' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorciosColNombre' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Name' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorciosColNombre' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_man_dgvConsorciosColDireccion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_man_dgvConsorciosColDireccion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Dirección' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorciosColDireccion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Address' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorciosColDireccion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_man_dgvConsorciosColCantidadUnidades')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_man_dgvConsorciosColCantidadUnidades');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cantidad de unidades' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorciosColCantidadUnidades' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Number of units' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorciosColCantidadUnidades' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_man_dgvConsorciosColActivo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_man_dgvConsorciosColActivo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Activo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorciosColActivo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Active' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorciosColActivo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_man_lblNombre')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_man_lblNombre');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Nombre' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblNombre' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Name' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblNombre' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_man_lblDireccion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_man_lblDireccion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Dirección' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblDireccion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Address' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblDireccion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_man_lblCantidadUnidades')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_man_lblCantidadUnidades');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cantidad de unidades' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblCantidadUnidades' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Number of units' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblCantidadUnidades' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'chk_man_chkActivo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'chk_man_chkActivo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Activo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'chk_man_chkActivo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Active' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'chk_man_chkActivo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_man_btnNuevoConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_man_btnNuevoConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Nuevo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnNuevoConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'New' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnNuevoConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_man_btnGuardarConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_man_btnGuardarConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Guardar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnGuardarConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Save' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnGuardarConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_man_btnInactivarConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_man_btnInactivarConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Inactivar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnInactivarConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Deactivate' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnInactivarConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_man_btnReactivarConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_man_btnReactivarConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Reactivar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnReactivarConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Reactivate' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnReactivarConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_man_btnCancelarConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_man_btnCancelarConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cancelar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnCancelarConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cancel' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnCancelarConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_man_dgvUnidadesFuncionalesColId')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_man_dgvUnidadesFuncionalesColId');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvUnidadesFuncionalesColId' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvUnidadesFuncionalesColId' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_man_dgvUnidadesFuncionalesColIdentificador')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_man_dgvUnidadesFuncionalesColIdentificador');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Identificador' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvUnidadesFuncionalesColIdentificador' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Identifier' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvUnidadesFuncionalesColIdentificador' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_man_dgvUnidadesFuncionalesColTipo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_man_dgvUnidadesFuncionalesColTipo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Tipo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvUnidadesFuncionalesColTipo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Type' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvUnidadesFuncionalesColTipo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_man_dgvUnidadesFuncionalesColActiva')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_man_dgvUnidadesFuncionalesColActiva');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Activa' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvUnidadesFuncionalesColActiva' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Active' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvUnidadesFuncionalesColActiva' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_man_lblConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_man_lblConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Building' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_man_lblIdentificador')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_man_lblIdentificador');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Identificador' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblIdentificador' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Identifier' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblIdentificador' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_man_lblTipo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_man_lblTipo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Tipo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblTipo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Type' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblTipo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'chk_man_chkActiva')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'chk_man_chkActiva');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Activa' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'chk_man_chkActiva' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Active' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'chk_man_chkActiva' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_man_btnNuevoUnidadFuncional')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_man_btnNuevoUnidadFuncional');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Nuevo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnNuevoUnidadFuncional' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'New' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnNuevoUnidadFuncional' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_man_btnGuardarUnidadFuncional')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_man_btnGuardarUnidadFuncional');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Guardar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnGuardarUnidadFuncional' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Save' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnGuardarUnidadFuncional' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_man_btnInactivarUnidadFuncional')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_man_btnInactivarUnidadFuncional');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Inactivar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnInactivarUnidadFuncional' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Deactivate' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnInactivarUnidadFuncional' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_man_btnReactivarUnidadFuncional')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_man_btnReactivarUnidadFuncional');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Reactivar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnReactivarUnidadFuncional' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Reactivate' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnReactivarUnidadFuncional' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_man_btnCancelarUnidadFuncional')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_man_btnCancelarUnidadFuncional');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cancelar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnCancelarUnidadFuncional' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cancel' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnCancelarUnidadFuncional' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_man_dgvConsorcistasColId')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_man_dgvConsorcistasColId');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorcistasColId' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorcistasColId' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_man_dgvConsorcistasColDni')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_man_dgvConsorcistasColDni');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'DNI' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorcistasColDni' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'National ID' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorcistasColDni' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_man_dgvConsorcistasColNombre')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_man_dgvConsorcistasColNombre');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Nombre' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorcistasColNombre' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Name' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorcistasColNombre' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_man_dgvConsorcistasColEmail')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_man_dgvConsorcistasColEmail');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Email' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorcistasColEmail' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Email' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorcistasColEmail' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_man_dgvConsorcistasColTipo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_man_dgvConsorcistasColTipo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Propietario/Inquilino' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorcistasColTipo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Owner/Tenant' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorcistasColTipo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_man_dgvConsorcistasColActivo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_man_dgvConsorcistasColActivo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Activo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorcistasColActivo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Active' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_man_dgvConsorcistasColActivo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_man_lblConsorcioConsorcista')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_man_lblConsorcioConsorcista');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblConsorcioConsorcista' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Building' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblConsorcioConsorcista' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_man_lblUnidadFuncionalConsorcista')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_man_lblUnidadFuncionalConsorcista');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Unidad funcional' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblUnidadFuncionalConsorcista' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Unit' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblUnidadFuncionalConsorcista' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_man_lblDni')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_man_lblDni');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'DNI' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblDni' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'National ID' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblDni' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_man_lblNombreConsorcista')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_man_lblNombreConsorcista');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Nombre' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblNombreConsorcista' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Name' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblNombreConsorcista' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_man_lblEmailConsorcista')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_man_lblEmailConsorcista');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Email' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblEmailConsorcista' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Email' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_lblEmailConsorcista' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'rdo_man_rdoPropietario')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'rdo_man_rdoPropietario');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Propietario' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'rdo_man_rdoPropietario' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Owner' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'rdo_man_rdoPropietario' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'rdo_man_rdoInquilino')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'rdo_man_rdoInquilino');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Inquilino' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'rdo_man_rdoInquilino' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Tenant' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'rdo_man_rdoInquilino' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'chk_man_chkActivoConsorcista')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'chk_man_chkActivoConsorcista');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Activo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'chk_man_chkActivoConsorcista' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Active' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'chk_man_chkActivoConsorcista' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_man_btnNuevoConsorcista')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_man_btnNuevoConsorcista');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Nuevo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnNuevoConsorcista' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'New' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnNuevoConsorcista' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_man_btnGuardarConsorcista')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_man_btnGuardarConsorcista');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Guardar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnGuardarConsorcista' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Save' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnGuardarConsorcista' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_man_btnInactivarConsorcista')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_man_btnInactivarConsorcista');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Inactivar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnInactivarConsorcista' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Deactivate' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnInactivarConsorcista' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_man_btnReactivarConsorcista')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_man_btnReactivarConsorcista');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Reactivar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnReactivarConsorcista' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Reactivate' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnReactivarConsorcista' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_man_btnCancelarConsorcista')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_man_btnCancelarConsorcista');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cancelar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnCancelarConsorcista' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cancel' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_man_btnCancelarConsorcista' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_mantenimientoConsorcios')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_mantenimientoConsorcios');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Mantenimiento de consorcios' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_mantenimientoConsorcios' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Building maintenance' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_mantenimientoConsorcios' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_menuReclamos')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_menuReclamos');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Reclamos' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_menuReclamos' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Complaints' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_menuReclamos' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_cargarClasificarReclamo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_cargarClasificarReclamo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cargar y clasificar reclamo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cargarClasificarReclamo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Load and classify complaint' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cargarClasificarReclamo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_buscarDerivarProveedor')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_buscarDerivarProveedor');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Buscar y derivar proveedor' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_buscarDerivarProveedor' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Search and refer provider' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_buscarDerivarProveedor' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_cerrarReclamoImputarCosto')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_cerrarReclamoImputarCosto');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cerrar reclamo e imputar costo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cerrarReclamoImputarCosto' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Close complaint and charge cost' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cerrarReclamoImputarCosto' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_consultarHistorial')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_consultarHistorial');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consultar historial' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_consultarHistorial' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'View history' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_consultarHistorial' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_tipoImputacion_comun')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_tipoImputacion_comun');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Común' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_tipoImputacion_comun' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Common' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_tipoImputacion_comun' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_tipoImputacion_particular')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_tipoImputacion_particular');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Particular' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_tipoImputacion_particular' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Individual' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_tipoImputacion_particular' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_prioridad_urgente')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_prioridad_urgente');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Urgente' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_prioridad_urgente' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Urgent' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_prioridad_urgente' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_prioridad_media')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_prioridad_media');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Media' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_prioridad_media' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Medium' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_prioridad_media' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_prioridad_baja')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_prioridad_baja');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Baja' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_prioridad_baja' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Low' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_prioridad_baja' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_estado_todos')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_estado_todos');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'(Todos)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_estado_todos' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'(All)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_estado_todos' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_estado_pendiente')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_estado_pendiente');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Pendiente de clasificación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_estado_pendiente' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Pending classification' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_estado_pendiente' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_estado_clasificado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_estado_clasificado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Clasificado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_estado_clasificado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Classified' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_estado_clasificado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_estado_derivado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_estado_derivado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Derivado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_estado_derivado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Referred' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_estado_derivado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_estado_cerrado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_estado_cerrado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cerrado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_estado_cerrado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Closed' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_estado_cerrado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_tipoUF_departamento')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_tipoUF_departamento');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Departamento' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_tipoUF_departamento' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Apartment' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_tipoUF_departamento' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_tipoUF_cochera')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_tipoUF_cochera');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cochera' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_tipoUF_cochera' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Garage' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_tipoUF_cochera' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_tipoUF_local')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_tipoUF_local');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Local' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_tipoUF_local' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Store' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_tipoUF_local' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_tipoUF_baulera')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_tipoUF_baulera');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Baulera' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_tipoUF_baulera' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Storage unit' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_tipoUF_baulera' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_gastoParticularSinUnidad')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_gastoParticularSinUnidad');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'El gasto particular requiere una unidad funcional' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_gastoParticularSinUnidad' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'An individual expense requires a unit' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_gastoParticularSinUnidad' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_plazoSlaInvalido')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_plazoSlaInvalido');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ingrese un plazo de resolución válido' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_plazoSlaInvalido' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Enter a valid resolution deadline' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_plazoSlaInvalido' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_informeCostoRequerido')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_informeCostoRequerido');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Complete el informe y un costo mayor a cero' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_informeCostoRequerido' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Complete the report and a cost greater than zero' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_informeCostoRequerido' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_fechasInvertidas')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_fechasInvertidas');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'La fecha desde no puede ser posterior a la fecha hasta' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_fechasInvertidas' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'The from date cannot be later than the to date' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_fechasInvertidas' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_consorcioDatosIncompletos')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_consorcioDatosIncompletos');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Complete el nombre, la dirección y una cantidad de unidades mayor a cero' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_consorcioDatosIncompletos' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Complete the name, address and a number of units greater than zero' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_consorcioDatosIncompletos' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_consorcioNoInactivable')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_consorcioNoInactivable');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'No se puede inactivar: el consorcio tiene unidades funcionales activas o reclamos en curso' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_consorcioNoInactivable' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cannot deactivate: the building has active units or complaints in progress' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_consorcioNoInactivable' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_unidadFuncionalNoInactivable')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_unidadFuncionalNoInactivable');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'No se puede inactivar: la unidad funcional tiene consorcistas activos o reclamos en curso' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_unidadFuncionalNoInactivable' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cannot deactivate: the unit has active residents or complaints in progress' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_unidadFuncionalNoInactivable' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_unidadFuncionalDuplicada')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_unidadFuncionalDuplicada');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ya existe una unidad funcional con ese identificador en el consorcio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_unidadFuncionalDuplicada' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'A unit with that identifier already exists in the building' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_unidadFuncionalDuplicada' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_consorcistaNoInactivable')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_consorcistaNoInactivable');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'No se puede inactivar: el consorcista tiene reclamos en curso' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_consorcistaNoInactivable' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cannot deactivate: the resident has complaints in progress' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_consorcistaNoInactivable' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_dniInvalido')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_dniInvalido');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ingrese un DNI válido' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_dniInvalido' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Enter a valid national ID' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_dniInvalido' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_emailInvalido')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_emailInvalido');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ingrese un email válido' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_emailInvalido' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Enter a valid email' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_emailInvalido' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_car_reclamoRegistrado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_car_reclamoRegistrado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Reclamo registrado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_reclamoRegistrado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Complaint registered' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_reclamoRegistrado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_car_confirmarReincidencia')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_car_confirmarReincidencia');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Existe un reclamo cerrado hace menos de 30 días con la misma ubicación y categoría (N.º {0}). ¿Se trata del mismo problema?' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_confirmarReincidencia' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'There is a complaint closed less than 30 days ago with the same location and category (No. {0}). Is this the same problem?' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_confirmarReincidencia' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_car_reclamoClasificado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_car_reclamoClasificado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Reclamo clasificado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_reclamoClasificado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Complaint classified' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_car_reclamoClasificado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_bus_reclamoDerivado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_bus_reclamoDerivado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Reclamo derivado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_bus_reclamoDerivado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Complaint referred' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_bus_reclamoDerivado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_cie_reclamoCerrado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_cie_reclamoCerrado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Reclamo cerrado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cie_reclamoCerrado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Complaint closed' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_cie_reclamoCerrado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_his_pdfGenerado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_his_pdfGenerado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'PDF generado correctamente' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_his_pdfGenerado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'PDF generated successfully' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_his_pdfGenerado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_man_guardado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_man_guardado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Guardado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_guardado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Saved' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_man_guardado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_bus_btnRegistrarProveedor')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_bus_btnRegistrarProveedor');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Registrar proveedor' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_bus_btnRegistrarProveedor' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Register supplier' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_bus_btnRegistrarProveedor' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_bus_sinProveedores')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_bus_sinProveedores');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'No hay proveedores habilitados para esta categoría' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_bus_sinProveedores' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'There are no enabled suppliers for this category' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_bus_sinProveedores' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'frm_regprov_frmRegistrarProveedor')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'frm_regprov_frmRegistrarProveedor');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Registrar proveedor' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'frm_regprov_frmRegistrarProveedor' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Register supplier' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'frm_regprov_frmRegistrarProveedor' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_regprov_lblNombre')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_regprov_lblNombre');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Nombre' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_regprov_lblNombre' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Name' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_regprov_lblNombre' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_regprov_lblCuit')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_regprov_lblCuit');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'CUIT' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_regprov_lblCuit' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'CUIT' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_regprov_lblCuit' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_regprov_lblEmail')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_regprov_lblEmail');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Email' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_regprov_lblEmail' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Email' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_regprov_lblEmail' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_regprov_lblCategorias')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_regprov_lblCategorias');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Categorías' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_regprov_lblCategorias' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Categories' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_regprov_lblCategorias' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_regprov_btnGuardar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_regprov_btnGuardar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Guardar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_regprov_btnGuardar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Save' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_regprov_btnGuardar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_regprov_btnCancelar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_regprov_btnCancelar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cancelar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_regprov_btnCancelar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cancel' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_regprov_btnCancelar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_regprov_proveedorRegistrado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_regprov_proveedorRegistrado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Proveedor registrado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_regprov_proveedorRegistrado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Supplier registered' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_regprov_proveedorRegistrado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_proveedorDatosIncompletos')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_proveedorDatosIncompletos');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Complete nombre, CUIT, email y al menos una categoría' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_proveedorDatosIncompletos' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Enter name, CUIT, email and at least one category' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_proveedorDatosIncompletos' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_proveedorCuitDuplicado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_proveedorCuitDuplicado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ya existe un proveedor registrado con ese CUIT' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_proveedorCuitDuplicado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'A supplier with that CUIT is already registered' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_proveedorCuitDuplicado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+
+-- 8. Datos de prueba de PN01 (con los digitos verificadores ya calculados)
+SET IDENTITY_INSERT [dbo].[CONSORCIO] ON
+INSERT [dbo].[CONSORCIO] ([IdConsorcio_413BE], [Nombre_413BE], [Direccion_413BE], [CantidadUnidades_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (1, N'Edificio Belgrano 1450', N'Av. Belgrano 1450', 12, 1, 40)
+INSERT [dbo].[CONSORCIO] ([IdConsorcio_413BE], [Nombre_413BE], [Direccion_413BE], [CantidadUnidades_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (2, N'Torre Rivadavia 320', N'Av. Rivadavia 320', 8, 1, 80)
+SET IDENTITY_INSERT [dbo].[CONSORCIO] OFF
+GO
+SET IDENTITY_INSERT [dbo].[UNIDAD_FUNCIONAL] ON
+INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (1, 1, N'1A', N'Departamento', 1, 83)
+INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (2, 1, N'1B', N'Departamento', 1, 87)
+INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (3, 1, N'2A', N'Departamento', 1, 85)
+INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (4, 1, N'2B', N'Departamento', 1, 89)
+INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (5, 1, N'3A', N'Departamento', 1, 87)
+INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (6, 1, N'C1', N'Cochera', 1, 65)
+INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (7, 2, N'1A', N'Departamento', 1, 84)
+INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (8, 2, N'1B', N'Departamento', 1, 88)
+INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (9, 2, N'2A', N'Departamento', 1, 86)
+INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (10, 2, N'2B', N'Departamento', 1, 90)
+INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (11, 2, N'3A', N'Departamento', 1, 88)
+INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (12, 2, N'C1', N'Cochera', 1, 66)
+SET IDENTITY_INSERT [dbo].[UNIDAD_FUNCIONAL] OFF
+GO
+SET IDENTITY_INSERT [dbo].[CONSORCISTA] ON
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (1, 1, N'20111111', N'Marta Gómez', N'marta.gomez@example.com', 1, 1, 16)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (2, 2, N'20222222', N'Luis Fernández', N'luis.fernandez@example.com', 1, 1, 78)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (3, 3, N'20333333', N'Ana Ríos', N'ana.rios@example.com', 1, 1, 24)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (4, 4, N'20444444', N'Jorge Molina', N'jorge.molina@example.com', 1, 1, 34)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (5, 5, N'20555555', N'Sofía Herrera', N'sofia.herrera@example.com', 1, 1, 74)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (6, 6, N'20666666', N'Carlos Peralta', N'carlos.peralta@example.com', 1, 1, 50)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (7, 7, N'30111111', N'Laura Benítez', N'laura.benitez@example.com', 1, 1, 85)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (8, 8, N'30222222', N'Diego Acosta', N'diego.acosta@example.com', 1, 1, 47)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (9, 9, N'30333333', N'Paula Suárez', N'paula.suarez@example.com', 1, 1, 76)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (10, 10, N'30444444', N'Martín Ortiz', N'martin.ortiz@example.com', 1, 1, 11)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (11, 11, N'30555555', N'Elena Castro', N'elena.castro@example.com', 1, 1, 63)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (12, 12, N'30666666', N'Raúl Domínguez', N'raul.dominguez@example.com', 1, 1, 76)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (13, 1, N'40111111', N'Julián Vega', N'julian.vega@example.com', 0, 1, 51)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (14, 2, N'40222222', N'Camila Torres', N'camila.torres@example.com', 0, 1, 76)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (15, 3, N'40333333', N'Nicolás Paz', N'nicolas.paz@example.com', 0, 1, 7)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (16, 7, N'50111111', N'Valeria Luna', N'valeria.luna@example.com', 0, 1, 86)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (17, 8, N'50222222', N'Andrés Rojas', N'andres.rojas@example.com', 0, 1, 20)
+INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (18, 9, N'50333333', N'Florencia Díaz', N'florencia.diaz@example.com', 0, 1, 71)
+SET IDENTITY_INSERT [dbo].[CONSORCISTA] OFF
+GO
+SET IDENTITY_INSERT [dbo].[CATEGORIA] ON
+INSERT [dbo].[CATEGORIA] ([IdCategoria_413BE], [Nombre_413BE], [Dvh_413BE]) VALUES (1, N'Plomería', 33)
+INSERT [dbo].[CATEGORIA] ([IdCategoria_413BE], [Nombre_413BE], [Dvh_413BE]) VALUES (2, N'Electricidad', 33)
+INSERT [dbo].[CATEGORIA] ([IdCategoria_413BE], [Nombre_413BE], [Dvh_413BE]) VALUES (3, N'Ascensor', 45)
+INSERT [dbo].[CATEGORIA] ([IdCategoria_413BE], [Nombre_413BE], [Dvh_413BE]) VALUES (4, N'Gas', 28)
+INSERT [dbo].[CATEGORIA] ([IdCategoria_413BE], [Nombre_413BE], [Dvh_413BE]) VALUES (5, N'Cerrajería', 23)
+SET IDENTITY_INSERT [dbo].[CATEGORIA] OFF
+GO
+SET IDENTITY_INSERT [dbo].[PROVEEDOR] ON
+INSERT [dbo].[PROVEEDOR] ([IdProveedor_413BE], [Nombre_413BE], [Cuit_413BE], [Email_413BE], [Habilitado_413BE], [Dvh_413BE]) VALUES (1, N'Hidro Sur SRL', N'30-70000001-1', N'contacto@hidrosur.example.com', 1, 8)
+INSERT [dbo].[PROVEEDOR] ([IdProveedor_413BE], [Nombre_413BE], [Cuit_413BE], [Email_413BE], [Habilitado_413BE], [Dvh_413BE]) VALUES (2, N'Aguas y Caños SA', N'30-70000002-2', N'contacto@aguasycanos.example.com', 1, 88)
+INSERT [dbo].[PROVEEDOR] ([IdProveedor_413BE], [Nombre_413BE], [Cuit_413BE], [Email_413BE], [Habilitado_413BE], [Dvh_413BE]) VALUES (3, N'Plomería Express', N'30-70000003-3', N'contacto@plomeriaexpress.example.com', 1, 65)
+INSERT [dbo].[PROVEEDOR] ([IdProveedor_413BE], [Nombre_413BE], [Cuit_413BE], [Email_413BE], [Habilitado_413BE], [Dvh_413BE]) VALUES (4, N'Electro Norte SRL', N'30-70000004-4', N'contacto@electronorte.example.com', 1, 10)
+INSERT [dbo].[PROVEEDOR] ([IdProveedor_413BE], [Nombre_413BE], [Cuit_413BE], [Email_413BE], [Habilitado_413BE], [Dvh_413BE]) VALUES (5, N'Instalaciones Integrales SA', N'30-70000005-5', N'contacto@instintegrales.example.com', 1, 65)
+INSERT [dbo].[PROVEEDOR] ([IdProveedor_413BE], [Nombre_413BE], [Cuit_413BE], [Email_413BE], [Habilitado_413BE], [Dvh_413BE]) VALUES (6, N'Elevar Ascensores SA', N'30-70000006-6', N'contacto@elevar.example.com', 1, 95)
+INSERT [dbo].[PROVEEDOR] ([IdProveedor_413BE], [Nombre_413BE], [Cuit_413BE], [Email_413BE], [Habilitado_413BE], [Dvh_413BE]) VALUES (7, N'Cerrajería Llave Maestra', N'30-70000007-7', N'contacto@llavemaestra.example.com', 1, 96)
+SET IDENTITY_INSERT [dbo].[PROVEEDOR] OFF
+GO
+INSERT [dbo].[PROVEEDOR_CATEGORIA] ([IdProveedor_413BE], [IdCategoria_413BE], [Dvh_413BE]) VALUES (1, 1, 50)
+INSERT [dbo].[PROVEEDOR_CATEGORIA] ([IdProveedor_413BE], [IdCategoria_413BE], [Dvh_413BE]) VALUES (2, 1, 51)
+INSERT [dbo].[PROVEEDOR_CATEGORIA] ([IdProveedor_413BE], [IdCategoria_413BE], [Dvh_413BE]) VALUES (3, 1, 52)
+INSERT [dbo].[PROVEEDOR_CATEGORIA] ([IdProveedor_413BE], [IdCategoria_413BE], [Dvh_413BE]) VALUES (4, 2, 55)
+INSERT [dbo].[PROVEEDOR_CATEGORIA] ([IdProveedor_413BE], [IdCategoria_413BE], [Dvh_413BE]) VALUES (5, 2, 56)
+INSERT [dbo].[PROVEEDOR_CATEGORIA] ([IdProveedor_413BE], [IdCategoria_413BE], [Dvh_413BE]) VALUES (5, 4, 60)
+INSERT [dbo].[PROVEEDOR_CATEGORIA] ([IdProveedor_413BE], [IdCategoria_413BE], [Dvh_413BE]) VALUES (6, 3, 59)
+INSERT [dbo].[PROVEEDOR_CATEGORIA] ([IdProveedor_413BE], [IdCategoria_413BE], [Dvh_413BE]) VALUES (7, 5, 64)
+GO
+SET IDENTITY_INSERT [dbo].[RECLAMO] ON
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (1, 1, 1, 1, 1, NULL, NULL, N'Reclamo de historial: Plomería', CAST(N'2026-06-21T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 21)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (2, 1, 2, 1, 2, NULL, NULL, N'Reclamo de historial: Plomería', CAST(N'2026-07-10T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 28)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (3, 2, 7, 1, 7, NULL, NULL, N'Reclamo de historial: Plomería', CAST(N'2026-07-31T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 89)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (4, 1, 3, 1, 3, NULL, NULL, N'Reclamo de historial: Plomería', CAST(N'2026-06-27T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'BAJA_413BE', N'PARTICULAR_413BE', 0, 0)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (5, 1, 4, 1, 4, NULL, NULL, N'Reclamo de historial: Plomería', CAST(N'2026-07-18T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 1)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (6, 1, 1, 1, 1, NULL, NULL, N'Reclamo de historial: Plomería', CAST(N'2026-09-09T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'URGENTE_413BE', N'PARTICULAR_413BE', 0, 6)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (7, 2, 8, 1, 8, NULL, NULL, N'Reclamo de historial: Plomería', CAST(N'2026-08-05T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 61)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (8, 1, 5, 1, 5, NULL, NULL, N'Reclamo de historial: Plomería', CAST(N'2026-08-28T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'BAJA_413BE', N'PARTICULAR_413BE', 0, 10)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (9, 1, 3, 1, 3, NULL, 4, N'Reclamo de historial: Plomería', CAST(N'2026-08-05T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 1, 39)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (10, 2, 7, 1, 7, NULL, 3, N'Reclamo de historial: Plomería', CAST(N'2026-08-25T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 1, 8)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (11, 1, 1, 2, 1, NULL, NULL, N'Reclamo de historial: Electricidad', CAST(N'2026-07-15T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 79)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (12, 2, 9, 2, 9, NULL, NULL, N'Reclamo de historial: Electricidad', CAST(N'2026-08-13T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 24)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (13, 1, 2, 2, 2, NULL, NULL, N'Reclamo de historial: Electricidad', CAST(N'2026-07-27T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'URGENTE_413BE', N'PARTICULAR_413BE', 0, 26)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (14, 2, 10, 2, 10, NULL, NULL, N'Reclamo de historial: Electricidad', CAST(N'2026-08-20T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 93)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (15, 2, 9, 2, 9, NULL, 12, N'Reclamo de historial: Electricidad', CAST(N'2026-09-05T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'URGENTE_413BE', N'PARTICULAR_413BE', 1, 80)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (16, 1, 1, 3, NULL, N'Ascensor', NULL, N'Reclamo de historial: Ascensor', CAST(N'2026-07-04T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'URGENTE_413BE', N'COMUN_413BE', 0, 71)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (17, 2, 7, 3, NULL, N'Ascensor', NULL, N'Reclamo de historial: Ascensor', CAST(N'2026-08-16T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'URGENTE_413BE', N'COMUN_413BE', 0, 81)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (18, 1, 5, 4, 5, NULL, NULL, N'Reclamo de historial: Gas', CAST(N'2026-08-08T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 56)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (19, 2, 11, 5, 11, NULL, NULL, N'Reclamo de historial: Cerrajería', CAST(N'2026-08-30T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'BAJA_413BE', N'PARTICULAR_413BE', 0, 69)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (20, 1, 5, 2, 5, NULL, NULL, N'Se cortó la luz del palier del tercer piso', CAST(N'2026-09-21T12:00:00.000' AS DateTime), N'PENDIENTE_CLASIFICACION_413BE', NULL, NULL, 0, 18)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (21, 2, 8, 1, NULL, N'Terraza', NULL, N'Filtración de agua en la terraza', CAST(N'2026-09-22T12:00:00.000' AS DateTime), N'PENDIENTE_CLASIFICACION_413BE', NULL, NULL, 0, 17)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (22, 1, 6, 5, 6, NULL, NULL, N'La cerradura de la cochera no gira', CAST(N'2026-09-23T12:00:00.000' AS DateTime), N'PENDIENTE_CLASIFICACION_413BE', NULL, NULL, 0, 67)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (23, 1, 4, 1, 4, NULL, NULL, N'Pérdida de agua en la cocina', CAST(N'2026-09-18T12:00:00.000' AS DateTime), N'CLASIFICADO_413BE', N'MEDIA_413BE', N'COMUN_413BE', 0, 24)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (24, 2, 12, 2, NULL, N'Sala de máquinas', NULL, N'Tablero eléctrico con chispas', CAST(N'2026-09-19T12:00:00.000' AS DateTime), N'CLASIFICADO_413BE', N'URGENTE_413BE', N'COMUN_413BE', 0, 57)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (25, 1, 5, 4, 5, NULL, NULL, N'Olor a gas en la cocina', CAST(N'2026-09-20T12:00:00.000' AS DateTime), N'CLASIFICADO_413BE', N'BAJA_413BE', N'PARTICULAR_413BE', 0, 78)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (26, 1, 2, 1, 2, NULL, NULL, N'Canilla del baño pierde agua', CAST(N'2026-09-15T12:00:00.000' AS DateTime), N'DERIVADO_413BE', N'MEDIA_413BE', N'COMUN_413BE', 0, 26)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (27, 2, 7, 3, NULL, N'Ascensor', NULL, N'El ascensor queda detenido entre pisos', CAST(N'2026-09-16T12:00:00.000' AS DateTime), N'DERIVADO_413BE', N'URGENTE_413BE', N'COMUN_413BE', 0, 65)
+INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (28, 1, 3, 2, 3, NULL, NULL, N'Tomacorrientes sin energía', CAST(N'2026-09-17T12:00:00.000' AS DateTime), N'DERIVADO_413BE', N'BAJA_413BE', N'PARTICULAR_413BE', 0, 31)
+SET IDENTITY_INSERT [dbo].[RECLAMO] OFF
+GO
+GO
+SET IDENTITY_INSERT [dbo].[DERIVACION] ON
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (1, 1, 1, CAST(N'2026-06-23T12:00:00.000' AS DateTime), 7, 71)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (2, 2, 1, CAST(N'2026-07-12T12:00:00.000' AS DateTime), 7, 36)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (3, 3, 1, CAST(N'2026-08-02T12:00:00.000' AS DateTime), 7, 31)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (4, 4, 2, CAST(N'2026-06-29T12:00:00.000' AS DateTime), 15, 74)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (5, 5, 2, CAST(N'2026-07-20T12:00:00.000' AS DateTime), 7, 8)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (6, 6, 1, CAST(N'2026-09-11T12:00:00.000' AS DateTime), 2, 32)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (7, 7, 2, CAST(N'2026-08-07T12:00:00.000' AS DateTime), 7, 90)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (8, 8, 2, CAST(N'2026-08-30T12:00:00.000' AS DateTime), 15, 71)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (9, 9, 1, CAST(N'2026-08-07T12:00:00.000' AS DateTime), 7, 90)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (10, 10, 1, CAST(N'2026-08-27T12:00:00.000' AS DateTime), 7, 38)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (11, 11, 4, CAST(N'2026-07-17T12:00:00.000' AS DateTime), 7, 95)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (12, 12, 4, CAST(N'2026-08-15T12:00:00.000' AS DateTime), 7, 58)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (13, 13, 5, CAST(N'2026-07-29T12:00:00.000' AS DateTime), 2, 71)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (14, 14, 5, CAST(N'2026-08-22T12:00:00.000' AS DateTime), 7, 1)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (15, 15, 5, CAST(N'2026-09-07T12:00:00.000' AS DateTime), 2, 3)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (16, 16, 6, CAST(N'2026-07-06T12:00:00.000' AS DateTime), 2, 32)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (17, 17, 6, CAST(N'2026-08-18T12:00:00.000' AS DateTime), 2, 45)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (18, 18, 5, CAST(N'2026-08-10T12:00:00.000' AS DateTime), 7, 19)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (19, 19, 7, CAST(N'2026-09-01T12:00:00.000' AS DateTime), 15, 61)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (20, 26, 1, CAST(N'2026-09-16T12:00:00.000' AS DateTime), 7, 15)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (21, 27, 6, CAST(N'2026-09-17T12:00:00.000' AS DateTime), 2, 37)
+INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (22, 28, 4, CAST(N'2026-09-18T12:00:00.000' AS DateTime), 15, 0)
+SET IDENTITY_INSERT [dbo].[DERIVACION] OFF
+GO
+SET IDENTITY_INSERT [dbo].[CIERRE_RECLAMO] ON
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (1, 1, CAST(N'2026-06-26T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0001-00000001', N'Unidad funcional 1', CAST(45000.00 AS Decimal(18, 2)), 82)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (2, 2, CAST(N'2026-07-16T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'', N'Unidad funcional 2', CAST(40000.00 AS Decimal(18, 2)), 14)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (3, 3, CAST(N'2026-08-05T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0001-00000003', N'Unidad funcional 7', CAST(44000.00 AS Decimal(18, 2)), 25)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (4, 4, CAST(N'2026-07-06T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'', N'Unidad funcional 3', CAST(28000.00 AS Decimal(18, 2)), 75)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (5, 5, CAST(N'2026-07-26T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0001-00000005', N'Unidad funcional 4', CAST(31000.00 AS Decimal(18, 2)), 71)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (6, 6, CAST(N'2026-09-14T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'', N'Unidad funcional 1', CAST(46000.00 AS Decimal(18, 2)), 85)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (7, 7, CAST(N'2026-08-15T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0001-00000007', N'Unidad funcional 8', CAST(30000.00 AS Decimal(18, 2)), 32)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (8, 8, CAST(N'2026-09-04T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'', N'Unidad funcional 5', CAST(29500.00 AS Decimal(18, 2)), 58)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (9, 9, CAST(N'2026-08-10T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0001-00000009', N'Unidad funcional 3', CAST(43000.00 AS Decimal(18, 2)), 34)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (10, 10, CAST(N'2026-08-30T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'', N'Unidad funcional 7', CAST(42000.00 AS Decimal(18, 2)), 28)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (11, 11, CAST(N'2026-07-21T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0001-00000011', N'Unidad funcional 1', CAST(60000.00 AS Decimal(18, 2)), 5)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (12, 12, CAST(N'2026-08-20T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'', N'Unidad funcional 9', CAST(62000.00 AS Decimal(18, 2)), 12)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (13, 13, CAST(N'2026-07-31T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0001-00000013', N'Unidad funcional 2', CAST(75000.00 AS Decimal(18, 2)), 12)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (14, 14, CAST(N'2026-08-25T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'', N'Unidad funcional 10', CAST(78000.00 AS Decimal(18, 2)), 57)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (15, 15, CAST(N'2026-09-09T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0001-00000015', N'Unidad funcional 9', CAST(74000.00 AS Decimal(18, 2)), 15)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (16, 16, CAST(N'2026-07-11T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'', N'Registro general del consorcio 1', CAST(150000.00 AS Decimal(18, 2)), 44)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (17, 17, CAST(N'2026-08-22T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0001-00000017', N'Registro general del consorcio 2', CAST(140000.00 AS Decimal(18, 2)), 78)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (18, 18, CAST(N'2026-08-13T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'', N'Unidad funcional 5', CAST(52000.00 AS Decimal(18, 2)), 88)
+INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (19, 19, CAST(N'2026-09-02T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0001-00000019', N'Unidad funcional 11', CAST(18000.00 AS Decimal(18, 2)), 93)
+SET IDENTITY_INSERT [dbo].[CIERRE_RECLAMO] OFF
+GO
+-- Digito verificador vertical de cada tabla
+INSERT [dbo].[DigitoVerificadorVertical] ([DVV_ID], [DVV_Tabla], [DVV_Atributo], [DVV_Valor], [DVV_FechaCalculo]) VALUES (N'6fa9630d-d1ee-4fee-ba26-aa745c8d15a9', N'Usuario', N'*', 46, CAST(N'2026-09-24T12:00:00.000' AS DateTime))
+INSERT [dbo].[DigitoVerificadorVertical] ([DVV_ID], [DVV_Tabla], [DVV_Atributo], [DVV_Valor], [DVV_FechaCalculo]) VALUES (N'c8798890-dadf-43f8-8096-ef68ea62fdcc', N'CONSORCIO', N'*', 6, CAST(N'2026-09-24T12:00:00.000' AS DateTime))
+INSERT [dbo].[DigitoVerificadorVertical] ([DVV_ID], [DVV_Tabla], [DVV_Atributo], [DVV_Valor], [DVV_FechaCalculo]) VALUES (N'9c3e268a-e108-4c52-aa78-375309de0048', N'UNIDAD_FUNCIONAL', N'*', 17, CAST(N'2026-09-24T12:00:00.000' AS DateTime))
+INSERT [dbo].[DigitoVerificadorVertical] ([DVV_ID], [DVV_Tabla], [DVV_Atributo], [DVV_Valor], [DVV_FechaCalculo]) VALUES (N'68bd4b06-1233-4aa4-80bc-452e7c022a8f', N'CONSORCISTA', N'*', 31, CAST(N'2026-09-24T12:00:00.000' AS DateTime))
+INSERT [dbo].[DigitoVerificadorVertical] ([DVV_ID], [DVV_Tabla], [DVV_Atributo], [DVV_Valor], [DVV_FechaCalculo]) VALUES (N'428874ba-e0c9-4391-85ad-4888cfd803e7', N'CATEGORIA', N'*', 73, CAST(N'2026-09-24T12:00:00.000' AS DateTime))
+INSERT [dbo].[DigitoVerificadorVertical] ([DVV_ID], [DVV_Tabla], [DVV_Atributo], [DVV_Valor], [DVV_FechaCalculo]) VALUES (N'd435cf8f-5252-4094-852b-331922644dd6', N'PROVEEDOR', N'*', 46, CAST(N'2026-09-24T12:00:00.000' AS DateTime))
+INSERT [dbo].[DigitoVerificadorVertical] ([DVV_ID], [DVV_Tabla], [DVV_Atributo], [DVV_Valor], [DVV_FechaCalculo]) VALUES (N'22e2c617-0209-487c-80d9-78a92d46f983', N'PROVEEDOR_CATEGORIA', N'*', 56, CAST(N'2026-09-24T12:00:00.000' AS DateTime))
+INSERT [dbo].[DigitoVerificadorVertical] ([DVV_ID], [DVV_Tabla], [DVV_Atributo], [DVV_Valor], [DVV_FechaCalculo]) VALUES (N'60603364-374f-436b-809d-db1c22b27374', N'RECLAMO', N'*', 15, CAST(N'2026-09-24T12:00:00.000' AS DateTime))
+INSERT [dbo].[DigitoVerificadorVertical] ([DVV_ID], [DVV_Tabla], [DVV_Atributo], [DVV_Valor], [DVV_FechaCalculo]) VALUES (N'6e4892b2-0c84-4fbd-8b8b-1fca1edf6c87', N'DERIVACION', N'*', 30, CAST(N'2026-09-24T12:00:00.000' AS DateTime))
+INSERT [dbo].[DigitoVerificadorVertical] ([DVV_ID], [DVV_Tabla], [DVV_Atributo], [DVV_Valor], [DVV_FechaCalculo]) VALUES (N'8f8e7e30-ea65-44aa-b065-5ba01028136e', N'CIERRE_RECLAMO', N'*', 71, CAST(N'2026-09-24T12:00:00.000' AS DateTime))
+GO
+
+
+-- 9. PN02: tablas, patentes y etiquetas de asambleas
+USE [AppBaseDB]
+GO
+IF OBJECT_ID(N'[dbo].[PROPUESTA_ASAMBLEA]', N'U') IS NULL
+CREATE TABLE [dbo].[PROPUESTA_ASAMBLEA] (
+    [IdPropuesta_413BE] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_PROPUESTA_ASAMBLEA] PRIMARY KEY,
+    [IdConsorcio_413BE] INT NOT NULL CONSTRAINT [FK_PROPUESTA_CONSORCIO] REFERENCES [dbo].[CONSORCIO]([IdConsorcio_413BE]),
+    [FechaGeneracion_413BE] DATETIME NOT NULL,
+    [PeriodoDesde_413BE] DATETIME NOT NULL,
+    [PeriodoHasta_413BE] DATETIME NOT NULL,
+    [UmbralRepeticion_413BE] INT NOT NULL,
+    [Estado_413BE] NVARCHAR(50) NOT NULL,
+    [Dvh_413BE] INT NOT NULL CONSTRAINT [DF_PROPUESTA_ASAMBLEA_Dvh] DEFAULT 0
+);
+GO
+IF OBJECT_ID(N'[dbo].[ORDEN_DIA]', N'U') IS NULL
+CREATE TABLE [dbo].[ORDEN_DIA] (
+    [IdOrdenDia_413BE] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_ORDEN_DIA] PRIMARY KEY,
+    [IdPropuesta_413BE] INT NOT NULL CONSTRAINT [UQ_ORDEN_DIA_PROPUESTA] UNIQUE CONSTRAINT [FK_ORDEN_DIA_PROPUESTA] REFERENCES [dbo].[PROPUESTA_ASAMBLEA]([IdPropuesta_413BE]),
+    [FechaAsamblea_413BE] DATETIME NOT NULL,
+    [FechaRegistro_413BE] DATETIME NOT NULL,
+    [Dvh_413BE] INT NOT NULL CONSTRAINT [DF_ORDEN_DIA_Dvh] DEFAULT 0
+);
+GO
+IF OBJECT_ID(N'[dbo].[TEMA_PROPUESTO]', N'U') IS NULL
+CREATE TABLE [dbo].[TEMA_PROPUESTO] (
+    [IdTema_413BE] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_TEMA_PROPUESTO] PRIMARY KEY,
+    [IdPropuesta_413BE] INT NOT NULL CONSTRAINT [FK_TEMA_PROPUESTA] REFERENCES [dbo].[PROPUESTA_ASAMBLEA]([IdPropuesta_413BE]),
+    [IdCategoria_413BE] INT NOT NULL CONSTRAINT [FK_TEMA_CATEGORIA] REFERENCES [dbo].[CATEGORIA]([IdCategoria_413BE]),
+    [IdUnidadFuncional_413BE] INT NULL CONSTRAINT [FK_TEMA_UF] REFERENCES [dbo].[UNIDAD_FUNCIONAL]([IdUnidadFuncional_413BE]),
+    [AreaComun_413BE] NVARCHAR(100) NULL,
+    [CantidadReclamos_413BE] INT NOT NULL,
+    [CostoAcumulado_413BE] DECIMAL(18,2) NOT NULL,
+    [TiempoPromedioAbiertoDias_413BE] FLOAT NOT NULL,
+    [CostoSolucion_413BE] DECIMAL(18,2) NOT NULL,
+    [IdOrdenDia_413BE] INT NULL CONSTRAINT [FK_TEMA_ORDEN_DIA] REFERENCES [dbo].[ORDEN_DIA]([IdOrdenDia_413BE]),
+    [OrdenEnOrdenDia_413BE] INT NULL,
+    [Dvh_413BE] INT NOT NULL CONSTRAINT [DF_TEMA_PROPUESTO_Dvh] DEFAULT 0
+);
+GO
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Permiso] WHERE [Permiso_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1031')
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1031', N'Generar propuesta de temas para asamblea', 11)
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Permiso] WHERE [Permiso_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1032')
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1032', N'Definir orden del día', 12)
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Permiso] WHERE [Permiso_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1033')
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1033', N'Consultar historial de propuestas', 13)
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Familia_Patente] WHERE [Padre_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001' AND [Hijo_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1031')
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001', N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1031')
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Familia_Patente] WHERE [Padre_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001' AND [Hijo_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1032')
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001', N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1032')
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Familia_Patente] WHERE [Padre_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001' AND [Hijo_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1033')
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001', N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1033')
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_menuAsambleas')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_menuAsambleas');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Asambleas' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_menuAsambleas' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Meetings' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_menuAsambleas' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_generarPropuesta')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_generarPropuesta');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Generar propuesta de temas para asamblea' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_generarPropuesta' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Generate meeting topics proposal' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_generarPropuesta' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_genprop_grpFiltros')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_genprop_grpFiltros');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Período de análisis' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_genprop_grpFiltros' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Analysis period' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_genprop_grpFiltros' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_genprop_lblConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_genprop_lblConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_genprop_lblConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Building' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_genprop_lblConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_genprop_lblDesde')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_genprop_lblDesde');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Desde' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_genprop_lblDesde' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'From' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_genprop_lblDesde' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_genprop_lblHasta')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_genprop_lblHasta');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Hasta' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_genprop_lblHasta' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'To' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_genprop_lblHasta' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_genprop_btnAnalizar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_genprop_btnAnalizar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Analizar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_genprop_btnAnalizar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Analyze' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_genprop_btnAnalizar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_genprop_lbUmbral')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_genprop_lbUmbral');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Umbral de repetición vigente:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_genprop_lbUmbral' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Current repetition threshold:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_genprop_lbUmbral' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_genprop_grpGrupos')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_genprop_grpGrupos');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Grupos de reclamos candidatos' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_genprop_grpGrupos' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Candidate complaint groups' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_genprop_grpGrupos' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_genprop_dgvGruposColCategoria')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_genprop_dgvGruposColCategoria');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Categoría' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvGruposColCategoria' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Category' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvGruposColCategoria' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_genprop_dgvGruposColUbicacion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_genprop_dgvGruposColUbicacion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ubicación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvGruposColUbicacion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Location' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvGruposColUbicacion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_genprop_dgvGruposColCantidad')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_genprop_dgvGruposColCantidad');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cantidad de reclamos' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvGruposColCantidad' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Number of complaints' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvGruposColCantidad' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_genprop_dgvGruposColCostoAcumulado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_genprop_dgvGruposColCostoAcumulado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Costo acumulado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvGruposColCostoAcumulado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Accumulated cost' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvGruposColCostoAcumulado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_genprop_dgvGruposColTiempoPromedio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_genprop_dgvGruposColTiempoPromedio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Tiempo promedio abierto (días)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvGruposColTiempoPromedio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Average open time (days)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvGruposColTiempoPromedio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_genprop_dgvGruposColCostoSolucion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_genprop_dgvGruposColCostoSolucion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Costo de solución' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvGruposColCostoSolucion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Solution cost' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvGruposColCostoSolucion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_genprop_btnCalcularAhorro')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_genprop_btnCalcularAhorro');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Calcular ahorro' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_genprop_btnCalcularAhorro' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Calculate savings' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_genprop_btnCalcularAhorro' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_genprop_grpRanking')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_genprop_grpRanking');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ranking de temas' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_genprop_grpRanking' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Topic ranking' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_genprop_grpRanking' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_genprop_dgvRankingColPosicion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_genprop_dgvRankingColPosicion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Posición' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvRankingColPosicion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Position' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvRankingColPosicion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_genprop_dgvRankingColCategoria')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_genprop_dgvRankingColCategoria');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Categoría' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvRankingColCategoria' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Category' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvRankingColCategoria' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_genprop_dgvRankingColUbicacion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_genprop_dgvRankingColUbicacion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ubicación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvRankingColUbicacion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Location' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvRankingColUbicacion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_genprop_dgvRankingColCantidad')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_genprop_dgvRankingColCantidad');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cantidad' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvRankingColCantidad' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Quantity' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvRankingColCantidad' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_genprop_dgvRankingColCostoAcumulado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_genprop_dgvRankingColCostoAcumulado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Costo acumulado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvRankingColCostoAcumulado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Accumulated cost' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvRankingColCostoAcumulado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_genprop_dgvRankingColCostoSolucion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_genprop_dgvRankingColCostoSolucion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Costo de solución' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvRankingColCostoSolucion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Solution cost' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvRankingColCostoSolucion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_genprop_dgvRankingColAhorro')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_genprop_dgvRankingColAhorro');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ahorro estimado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvRankingColAhorro' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Estimated savings' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_genprop_dgvRankingColAhorro' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_genprop_btnGuardarPropuesta')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_genprop_btnGuardarPropuesta');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Guardar propuesta' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_genprop_btnGuardarPropuesta' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Save proposal' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_genprop_btnGuardarPropuesta' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_genprop_btnCancelar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_genprop_btnCancelar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cancelar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_genprop_btnCancelar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cancel' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_genprop_btnCancelar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_genprop_ningunGrupo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_genprop_ningunGrupo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ningún grupo de reclamos supera el umbral de repetición' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_genprop_ningunGrupo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'No complaint group reaches the repetition threshold' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_genprop_ningunGrupo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_genprop_propuestaGenerada')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_genprop_propuestaGenerada');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Propuesta generada' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_genprop_propuestaGenerada' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Proposal generated' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_genprop_propuestaGenerada' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_sinReclamosPeriodo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_sinReclamosPeriodo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'El consorcio no tiene reclamos en el período seleccionado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_sinReclamosPeriodo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'The building has no complaints in the selected period' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_sinReclamosPeriodo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_costoSolucionInvalido')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_costoSolucionInvalido');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ingrese un costo de solución mayor a cero para cada grupo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_costoSolucionInvalido' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Enter a solution cost greater than zero for each group' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_costoSolucionInvalido' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_umbralNoConfigurado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_umbralNoConfigurado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Debe configurarse el umbral de repetición' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_umbralNoConfigurado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'The repetition threshold must be configured' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_umbralNoConfigurado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_definirOrdenDia')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_definirOrdenDia');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Definir orden del día' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_definirOrdenDia' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Define meeting agenda' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_definirOrdenDia' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_ordia_grpPropuestas')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_ordia_grpPropuestas');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Propuestas generadas' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_ordia_grpPropuestas' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Generated proposals' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_ordia_grpPropuestas' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_ordia_dgvPropuestasColId')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_ordia_dgvPropuestasColId');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvPropuestasColId' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvPropuestasColId' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_ordia_dgvPropuestasColConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_ordia_dgvPropuestasColConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvPropuestasColConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Building' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvPropuestasColConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_ordia_dgvPropuestasColFechaGeneracion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_ordia_dgvPropuestasColFechaGeneracion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Fecha de generación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvPropuestasColFechaGeneracion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Generation date' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvPropuestasColFechaGeneracion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_ordia_dgvPropuestasColPeriodo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_ordia_dgvPropuestasColPeriodo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Período' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvPropuestasColPeriodo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Period' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvPropuestasColPeriodo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_ordia_dgvPropuestasColUmbral')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_ordia_dgvPropuestasColUmbral');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Umbral' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvPropuestasColUmbral' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Threshold' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvPropuestasColUmbral' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_ordia_grpTemas')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_ordia_grpTemas');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Temas de la propuesta' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_ordia_grpTemas' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Proposal topics' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_ordia_grpTemas' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_ordia_dgvTemasColIncluir')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_ordia_dgvTemasColIncluir');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Incluir' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvTemasColIncluir' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Include' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvTemasColIncluir' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_ordia_dgvTemasColPosicion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_ordia_dgvTemasColPosicion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Posición ranking' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvTemasColPosicion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ranking position' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvTemasColPosicion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_ordia_dgvTemasColCategoria')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_ordia_dgvTemasColCategoria');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Categoría' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvTemasColCategoria' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Category' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvTemasColCategoria' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_ordia_dgvTemasColUbicacion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_ordia_dgvTemasColUbicacion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ubicación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvTemasColUbicacion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Location' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvTemasColUbicacion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_ordia_dgvTemasColCantidad')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_ordia_dgvTemasColCantidad');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cantidad de reclamos' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvTemasColCantidad' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Number of complaints' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvTemasColCantidad' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_ordia_dgvTemasColCostoAcumulado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_ordia_dgvTemasColCostoAcumulado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Costo acumulado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvTemasColCostoAcumulado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Accumulated cost' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvTemasColCostoAcumulado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_ordia_dgvTemasColCostoSolucion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_ordia_dgvTemasColCostoSolucion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Costo de solución' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvTemasColCostoSolucion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Solution cost' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvTemasColCostoSolucion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_ordia_dgvTemasColAhorro')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_ordia_dgvTemasColAhorro');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ahorro estimado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvTemasColAhorro' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Estimated savings' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_ordia_dgvTemasColAhorro' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_ordia_btnSubir')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_ordia_btnSubir');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Subir' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_ordia_btnSubir' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Move up' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_ordia_btnSubir' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_ordia_btnBajar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_ordia_btnBajar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Bajar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_ordia_btnBajar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Move down' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_ordia_btnBajar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_ordia_grpRegistro')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_ordia_grpRegistro');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Orden del día' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_ordia_grpRegistro' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Meeting agenda' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_ordia_grpRegistro' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_ordia_lblFechaAsamblea')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_ordia_lblFechaAsamblea');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Fecha de la asamblea' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_ordia_lblFechaAsamblea' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Meeting date' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_ordia_lblFechaAsamblea' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_ordia_btnRegistrarOrdenDia')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_ordia_btnRegistrarOrdenDia');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Registrar orden del día' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_ordia_btnRegistrarOrdenDia' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Register agenda' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_ordia_btnRegistrarOrdenDia' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_ordia_btnCancelar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_ordia_btnCancelar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cancelar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_ordia_btnCancelar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cancel' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_ordia_btnCancelar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_ordia_ordenRegistrado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_ordia_ordenRegistrado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Orden del día registrado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_ordia_ordenRegistrado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Meeting agenda registered' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_ordia_ordenRegistrado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_ningunTemaIncluido')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_ningunTemaIncluido');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Incluya al menos un tema en el orden del día' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_ningunTemaIncluido' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Include at least one topic in the agenda' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_ningunTemaIncluido' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_fechaAsambleaInvalida')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_fechaAsambleaInvalida');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'La fecha de la asamblea no puede ser anterior a hoy' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_fechaAsambleaInvalida' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'The meeting date cannot be earlier than today' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_fechaAsambleaInvalida' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_consultarHistorialPropuestas')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_consultarHistorialPropuestas');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consultar historial de propuestas' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_consultarHistorialPropuestas' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'View proposal history' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_consultarHistorialPropuestas' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_hisprop_grpFiltros')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_hisprop_grpFiltros');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Filtros' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_hisprop_grpFiltros' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Filters' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_hisprop_grpFiltros' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_hisprop_lblConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_hisprop_lblConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_hisprop_lblConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Building' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_hisprop_lblConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_hisprop_lblEstado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_hisprop_lblEstado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Estado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_hisprop_lblEstado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Status' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_hisprop_lblEstado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'chk_hisprop_chkDesde')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'chk_hisprop_chkDesde');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Desde' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'chk_hisprop_chkDesde' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'From' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'chk_hisprop_chkDesde' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'chk_hisprop_chkHasta')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'chk_hisprop_chkHasta');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Hasta' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'chk_hisprop_chkHasta' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'To' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'chk_hisprop_chkHasta' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_hisprop_btnFiltrar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_hisprop_btnFiltrar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Filtrar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_hisprop_btnFiltrar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Filter' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_hisprop_btnFiltrar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_hisprop_grpPropuestas')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_hisprop_grpPropuestas');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Propuestas' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_hisprop_grpPropuestas' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Proposals' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_hisprop_grpPropuestas' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColId')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_hisprop_dgvPropuestasColId');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColId' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColId' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_hisprop_dgvPropuestasColConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Building' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColFechaGeneracion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_hisprop_dgvPropuestasColFechaGeneracion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Fecha de generación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColFechaGeneracion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Generation date' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColFechaGeneracion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColPeriodo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_hisprop_dgvPropuestasColPeriodo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Período' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColPeriodo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Period' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColPeriodo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColUmbral')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_hisprop_dgvPropuestasColUmbral');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Umbral' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColUmbral' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Threshold' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColUmbral' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColEstado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_hisprop_dgvPropuestasColEstado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Estado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColEstado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Status' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvPropuestasColEstado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_hisprop_grpTemas')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_hisprop_grpTemas');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Temas de la propuesta' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_hisprop_grpTemas' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Proposal topics' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_hisprop_grpTemas' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_hisprop_dgvTemasColPosicion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_hisprop_dgvTemasColPosicion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Posición ranking' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColPosicion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ranking position' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColPosicion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_hisprop_dgvTemasColCategoria')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_hisprop_dgvTemasColCategoria');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Categoría' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColCategoria' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Category' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColCategoria' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_hisprop_dgvTemasColUbicacion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_hisprop_dgvTemasColUbicacion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ubicación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColUbicacion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Location' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColUbicacion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_hisprop_dgvTemasColCantidad')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_hisprop_dgvTemasColCantidad');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cantidad' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColCantidad' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Quantity' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColCantidad' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_hisprop_dgvTemasColCostoAcumulado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_hisprop_dgvTemasColCostoAcumulado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Costo acumulado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColCostoAcumulado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Accumulated cost' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColCostoAcumulado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_hisprop_dgvTemasColCostoSolucion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_hisprop_dgvTemasColCostoSolucion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Costo de solución' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColCostoSolucion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Solution cost' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColCostoSolucion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_hisprop_dgvTemasColAhorro')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_hisprop_dgvTemasColAhorro');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ahorro estimado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColAhorro' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Estimated savings' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColAhorro' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_hisprop_dgvTemasColIncluido')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_hisprop_dgvTemasColIncluido');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Incluido en el orden del día' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColIncluido' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Included in the agenda' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColIncluido' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_hisprop_dgvTemasColOrden')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_hisprop_dgvTemasColOrden');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Orden' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColOrden' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Order' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_hisprop_dgvTemasColOrden' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_hisprop_lbFechaAsamblea')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_hisprop_lbFechaAsamblea');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Fecha de la asamblea:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_hisprop_lbFechaAsamblea' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Meeting date:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_hisprop_lbFechaAsamblea' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_hisprop_sinOrdenDia')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_hisprop_sinOrdenDia');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Sin orden del día' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_hisprop_sinOrdenDia' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'No agenda' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_hisprop_sinOrdenDia' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_hisprop_si')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_hisprop_si');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Sí' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_hisprop_si' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Yes' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_hisprop_si' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_hisprop_no')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_hisprop_no');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'No' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_hisprop_no' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'No' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_hisprop_no' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_propuesta_todos')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_propuesta_todos');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Todos' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_propuesta_todos' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'All' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_propuesta_todos' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_propuesta_generada')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_propuesta_generada');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Generada' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_propuesta_generada' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Generated' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_propuesta_generada' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_propuesta_conOrdenDia')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_propuesta_conOrdenDia');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Con orden del día' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_propuesta_conOrdenDia' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'With agenda' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_propuesta_conOrdenDia' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Permiso] WHERE [Permiso_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1034')
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1034', N'Serializar y deserializar propuestas', 14)
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Familia_Patente] WHERE [Padre_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001' AND [Hijo_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1034')
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001', N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1034')
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_serializarPropuestas')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_serializarPropuestas');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Serializar propuestas' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_serializarPropuestas' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Serialize proposals' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_serializarPropuestas' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_serprop_grpPropuestas')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_serprop_grpPropuestas');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Propuestas' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_serprop_grpPropuestas' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Proposals' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_serprop_grpPropuestas' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_serprop_dgvPropuestasColId')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_serprop_dgvPropuestasColId');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvPropuestasColId' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Id' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvPropuestasColId' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_serprop_dgvPropuestasColConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_serprop_dgvPropuestasColConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcio' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvPropuestasColConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Building' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvPropuestasColConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_serprop_dgvPropuestasColFechaGeneracion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_serprop_dgvPropuestasColFechaGeneracion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Fecha de generación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvPropuestasColFechaGeneracion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Generation date' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvPropuestasColFechaGeneracion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_serprop_dgvPropuestasColEstado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_serprop_dgvPropuestasColEstado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Estado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvPropuestasColEstado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Status' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvPropuestasColEstado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_serprop_btnSerializar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_serprop_btnSerializar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Serializar propuesta seleccionada' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_serprop_btnSerializar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Serialize selected proposal' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_serprop_btnSerializar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_serprop_btnDeserializar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_serprop_btnDeserializar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Deserializar archivo…' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_serprop_btnDeserializar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Deserialize file…' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_serprop_btnDeserializar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_serprop_grpLeidos')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_serprop_grpLeidos');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Propuesta deserializada' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_serprop_grpLeidos' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Deserialized proposal' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_serprop_grpLeidos' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColPosicion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_serprop_dgvTemasLeidosColPosicion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Posición' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColPosicion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Position' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColPosicion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColCategoria')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_serprop_dgvTemasLeidosColCategoria');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Categoría' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColCategoria' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Category' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColCategoria' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColUbicacion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_serprop_dgvTemasLeidosColUbicacion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ubicación' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColUbicacion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Location' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColUbicacion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColCantidad')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_serprop_dgvTemasLeidosColCantidad');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cantidad' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColCantidad' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Quantity' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColCantidad' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColCostoAcumulado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_serprop_dgvTemasLeidosColCostoAcumulado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Costo acumulado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColCostoAcumulado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Accumulated cost' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColCostoAcumulado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColCostoSolucion')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_serprop_dgvTemasLeidosColCostoSolucion');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Costo de solución' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColCostoSolucion' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Solution cost' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColCostoSolucion' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColAhorro')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_serprop_dgvTemasLeidosColAhorro');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Ahorro estimado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColAhorro' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Estimated savings' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColAhorro' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColOrden')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_serprop_dgvTemasLeidosColOrden');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Orden en el orden del día' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColOrden' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Order in the agenda' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_serprop_dgvTemasLeidosColOrden' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_serprop_lbOrigenDatos')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_serprop_lbOrigenDatos');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Datos leídos del archivo (no se guardan en la base)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_serprop_lbOrigenDatos' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Data read from the file (not saved to the database)' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_serprop_lbOrigenDatos' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_serprop_serializada')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_serprop_serializada');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Propuesta serializada' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_serprop_serializada' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Proposal serialized' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_serprop_serializada' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_serprop_resPropuesta')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_serprop_resPropuesta');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Propuesta:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_serprop_resPropuesta' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Proposal:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_serprop_resPropuesta' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_serprop_resConsorcio')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_serprop_resConsorcio');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Consorcio:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_serprop_resConsorcio' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Building:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_serprop_resConsorcio' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_serprop_resPeriodo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_serprop_resPeriodo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Período:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_serprop_resPeriodo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Period:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_serprop_resPeriodo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_serprop_resUmbral')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_serprop_resUmbral');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Umbral:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_serprop_resUmbral' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Threshold:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_serprop_resUmbral' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_serprop_resEstado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_serprop_resEstado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Estado:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_serprop_resEstado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Status:' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_serprop_resEstado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_archivoPropuestaInvalido')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_archivoPropuestaInvalido');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'El archivo no es una propuesta válida' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_archivoPropuestaInvalido' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'The file is not a valid proposal' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_archivoPropuestaInvalido' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_seleccionePropuesta')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_seleccionePropuesta');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Seleccione una propuesta' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_seleccionePropuesta' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Select a proposal' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_seleccionePropuesta' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+
+USE [master]
+GO
+BEGIN TRY
+    ALTER DATABASE [AppBaseDB] SET READ_WRITE
+END TRY
+BEGIN CATCH
+    PRINT N'La base ya esta en modo lectura/escritura.'
+END CATCH 
+GO
+GO
+
+-- ===== T06.B: permisos, menus y etiquetas =====
+-- Actualización de una base ya instalada: mantenimiento y bitácora de cambios de proveedores.
+-- Se puede correr más de una vez: lo que ya existe no se vuelve a crear.
+USE [AppBaseDB]
+GO
+
+-- Permisos y su relación con la familia Admin
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Permiso] WHERE [Permiso_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1035')
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1035', N'Mantenimiento de proveedores', 15)
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Permiso] WHERE [Permiso_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1036')
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1036', N'Bitácora de cambios de proveedores', 16)
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Familia_Patente] WHERE [Padre_ID] = N'28a2317f-4de7-4976-8810-bf9fc517c6ea' AND [Hijo_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1035')
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'28a2317f-4de7-4976-8810-bf9fc517c6ea', N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1035')
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Familia_Patente] WHERE [Padre_ID] = N'28a2317f-4de7-4976-8810-bf9fc517c6ea' AND [Hijo_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1036')
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'28a2317f-4de7-4976-8810-bf9fc517c6ea', N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1036')
+GO
+
+-- Textos de los menús, las pantallas y los mensajes nuevos
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_menuMaestros')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_menuMaestros');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Maestros' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_menuMaestros' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Master data' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_menuMaestros' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_mantenimientoProveedores')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_mantenimientoProveedores');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Mantenimiento de proveedores' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_mantenimientoProveedores' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Supplier maintenance' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_mantenimientoProveedores' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_bitacoraProveedores')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_bitacoraProveedores');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Bitácora de cambios de proveedores' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_bitacoraProveedores' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Supplier change log' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_bitacoraProveedores' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'frm_bitprov_frmBitacoraProveedores')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'frm_bitprov_frmBitacoraProveedores');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Bitácora de cambios de proveedores' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'frm_bitprov_frmBitacoraProveedores' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Supplier change log' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'frm_bitprov_frmBitacoraProveedores' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_bitprov_grpFiltros')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_bitprov_grpFiltros');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Filtros' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_bitprov_grpFiltros' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Filters' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_bitprov_grpFiltros' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_bitprov_lblCodigo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_bitprov_lblCodigo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Código de proveedor' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_bitprov_lblCodigo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Supplier code' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_bitprov_lblCodigo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_bitprov_lblNombre')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_bitprov_lblNombre');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Nombre' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_bitprov_lblNombre' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Name' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_bitprov_lblNombre' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_bitprov_grpBitacora')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_bitprov_grpBitacora');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Versiones registradas' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_bitprov_grpBitacora' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Recorded versions' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_bitprov_grpBitacora' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColCodigo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bitprov_dgvBitacoraColCodigo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Cod. proveedor' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColCodigo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Supplier code' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColCodigo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColFecha')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bitprov_dgvBitacoraColFecha');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Fecha' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColFecha' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Date' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColFecha' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColHora')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bitprov_dgvBitacoraColHora');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Hora' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColHora' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Time' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColHora' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColNombre')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bitprov_dgvBitacoraColNombre');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Nombre' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColNombre' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Name' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColNombre' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColCuit')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bitprov_dgvBitacoraColCuit');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'CUIT' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColCuit' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'CUIT' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColCuit' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColEmail')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bitprov_dgvBitacoraColEmail');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Email' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColEmail' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Email' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColEmail' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColHabilitado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bitprov_dgvBitacoraColHabilitado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Habilitado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColHabilitado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Enabled' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColHabilitado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColAct')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_bitprov_dgvBitacoraColAct');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Act' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColAct' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Current' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_bitprov_dgvBitacoraColAct' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_bitprov_btnAplicar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_bitprov_btnAplicar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Aplicar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_bitprov_btnAplicar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Apply' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_bitprov_btnAplicar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_bitprov_btnSalir')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_bitprov_btnSalir');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Salir' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_bitprov_btnSalir' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Exit' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_bitprov_btnSalir' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'enum_bitprov_todos')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'enum_bitprov_todos');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Todos' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_bitprov_todos' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'All' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'enum_bitprov_todos' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'frm_mantprov_frmMantenimientoProveedores')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'frm_mantprov_frmMantenimientoProveedores');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Mantenimiento de proveedores' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'frm_mantprov_frmMantenimientoProveedores' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Supplier maintenance' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'frm_mantprov_frmMantenimientoProveedores' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_mantprov_grpProveedores')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_mantprov_grpProveedores');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Proveedores' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_mantprov_grpProveedores' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Suppliers' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_mantprov_grpProveedores' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_mantprov_dgvProveedoresColCodigo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_mantprov_dgvProveedoresColCodigo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Código' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_mantprov_dgvProveedoresColCodigo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Code' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_mantprov_dgvProveedoresColCodigo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_mantprov_dgvProveedoresColNombre')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_mantprov_dgvProveedoresColNombre');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Nombre' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_mantprov_dgvProveedoresColNombre' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Name' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_mantprov_dgvProveedoresColNombre' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_mantprov_dgvProveedoresColCuit')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_mantprov_dgvProveedoresColCuit');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'CUIT' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_mantprov_dgvProveedoresColCuit' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'CUIT' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_mantprov_dgvProveedoresColCuit' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_mantprov_dgvProveedoresColEmail')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_mantprov_dgvProveedoresColEmail');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Email' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_mantprov_dgvProveedoresColEmail' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Email' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_mantprov_dgvProveedoresColEmail' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'col_mantprov_dgvProveedoresColHabilitado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'col_mantprov_dgvProveedoresColHabilitado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Habilitado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_mantprov_dgvProveedoresColHabilitado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Enabled' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'col_mantprov_dgvProveedoresColHabilitado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'grp_mantprov_grpDatos')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'grp_mantprov_grpDatos');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Datos del proveedor' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_mantprov_grpDatos' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Supplier details' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'grp_mantprov_grpDatos' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_mantprov_lblNombre')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_mantprov_lblNombre');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Nombre' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_mantprov_lblNombre' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Name' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_mantprov_lblNombre' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_mantprov_lblCuit')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_mantprov_lblCuit');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'CUIT' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_mantprov_lblCuit' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'CUIT' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_mantprov_lblCuit' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'lb_mantprov_lblEmail')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'lb_mantprov_lblEmail');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Email' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_mantprov_lblEmail' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Email' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'lb_mantprov_lblEmail' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_mantprov_btnNuevo')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_mantprov_btnNuevo');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Nuevo' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_mantprov_btnNuevo' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'New' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_mantprov_btnNuevo' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_mantprov_btnModificar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_mantprov_btnModificar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Modificar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_mantprov_btnModificar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Modify' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_mantprov_btnModificar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_mantprov_btnInhabilitar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_mantprov_btnInhabilitar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Inhabilitar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_mantprov_btnInhabilitar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Disable' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_mantprov_btnInhabilitar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_mantprov_btnHabilitar')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_mantprov_btnHabilitar');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Habilitar' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_mantprov_btnHabilitar' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Enable' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_mantprov_btnHabilitar' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'msg_proveedorModificado')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'msg_proveedorModificado');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Proveedor modificado' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'msg_proveedorModificado' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Supplier modified' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'msg_proveedorModificado' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_versionYaVigente')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_versionYaVigente');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'La versión seleccionada ya es la vigente' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_versionYaVigente' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'The selected version is already the current one' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_versionYaVigente' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'ex_versionNoSeleccionada')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'ex_versionNoSeleccionada');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Seleccione una versión de la bitácora' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_versionNoSeleccionada' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Select a version from the change log' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'ex_versionNoSeleccionada' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'msg_versionAplicada')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'msg_versionAplicada');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Versión aplicada' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'msg_versionAplicada' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Version applied' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'msg_versionAplicada' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+GO
+
+-- ===== 10. Datos de ejemplo ampliados (PN01 y PN02) con digitos verificadores calculados =====
+USE [AppBaseDB]
+GO
+
+-- 10.1 Maestros: tercer consorcio, unidades, consorcistas y categorias
+IF NOT EXISTS (SELECT 1 FROM CONSORCIO WHERE IdConsorcio_413BE = 3)
+BEGIN
+  SET IDENTITY_INSERT [dbo].[CONSORCIO] ON
+  INSERT [dbo].[CONSORCIO] ([IdConsorcio_413BE], [Nombre_413BE], [Direccion_413BE], [CantidadUnidades_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (3, N'Residencias del Parque 880', N'Calle Parque 880', 6, 1, 8)
+  SET IDENTITY_INSERT [dbo].[CONSORCIO] OFF
+  SET IDENTITY_INSERT [dbo].[UNIDAD_FUNCIONAL] ON
+  INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (13, 3, N'1A', N'Departamento', 1, 85)
+  INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (14, 3, N'1B', N'Departamento', 1, 89)
+  INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (15, 3, N'2A', N'Departamento', 1, 87)
+  INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (16, 3, N'2B', N'Departamento', 1, 91)
+  INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (17, 3, N'C1', N'Cochera', 1, 67)
+  INSERT [dbo].[UNIDAD_FUNCIONAL] ([IdUnidadFuncional_413BE], [IdConsorcio_413BE], [Identificador_413BE], [Tipo_413BE], [Activa_413BE], [Dvh_413BE]) VALUES (18, 3, N'C2', N'Cochera', 1, 71)
+  SET IDENTITY_INSERT [dbo].[UNIDAD_FUNCIONAL] OFF
+  SET IDENTITY_INSERT [dbo].[CONSORCISTA] ON
+  INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (19, 13, N'60111111', N'Gabriela Ponce', N'gabriela.ponce@example.com', 1, 1, 11)
+  INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (20, 14, N'60222222', N'Tomás Aguirre', N'tomas.aguirre@example.com', 1, 1, 25)
+  INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (21, 15, N'60333333', N'Rocío Medina', N'rocio.medina@example.com', 1, 1, 67)
+  INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (22, 16, N'60444444', N'Facundo Silva', N'facundo.silva@example.com', 0, 1, 0)
+  INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (23, 17, N'60555555', N'Marina Cabrera', N'marina.cabrera@example.com', 1, 1, 59)
+  INSERT [dbo].[CONSORCISTA] ([IdConsorcista_413BE], [IdUnidadFuncional_413BE], [Dni_413BE], [Nombre_413BE], [Email_413BE], [EsPropietario_413BE], [Activo_413BE], [Dvh_413BE]) VALUES (24, 18, N'60666666', N'Hernán Giménez', N'hernan.gimenez@example.com', 1, 1, 57)
+  SET IDENTITY_INSERT [dbo].[CONSORCISTA] OFF
+  SET IDENTITY_INSERT [dbo].[CATEGORIA] ON
+  INSERT [dbo].[CATEGORIA] ([IdCategoria_413BE], [Nombre_413BE], [Dvh_413BE]) VALUES (6, N'Pintura', 25)
+  INSERT [dbo].[CATEGORIA] ([IdCategoria_413BE], [Nombre_413BE], [Dvh_413BE]) VALUES (7, N'Limpieza', 39)
+  INSERT [dbo].[CATEGORIA] ([IdCategoria_413BE], [Nombre_413BE], [Dvh_413BE]) VALUES (8, N'Impermeabilización', 65)
+  SET IDENTITY_INSERT [dbo].[CATEGORIA] OFF
+END
+GO
+
+-- 10.2 Proveedores nuevos y sus categorias
+IF NOT EXISTS (SELECT 1 FROM PROVEEDOR WHERE IdProveedor_413BE = 8)
+BEGIN
+  SET IDENTITY_INSERT [dbo].[PROVEEDOR] ON
+  INSERT [dbo].[PROVEEDOR] ([IdProveedor_413BE], [Nombre_413BE], [Cuit_413BE], [Email_413BE], [Habilitado_413BE], [Dvh_413BE]) VALUES (8, N'Pinturas del Plata SRL', N'30-70000008-8', N'contacto@pinturasdelplata.example.com', 1, 61)
+  INSERT [dbo].[PROVEEDOR] ([IdProveedor_413BE], [Nombre_413BE], [Cuit_413BE], [Email_413BE], [Habilitado_413BE], [Dvh_413BE]) VALUES (9, N'Limpieza Total SA', N'30-70000009-9', N'contacto@limpiezatotal.example.com', 1, 44)
+  INSERT [dbo].[PROVEEDOR] ([IdProveedor_413BE], [Nombre_413BE], [Cuit_413BE], [Email_413BE], [Habilitado_413BE], [Dvh_413BE]) VALUES (10, N'Impermeabilizaciones del Sur SRL', N'30-70000010-0', N'contacto@impersur.example.com', 1, 12)
+  INSERT [dbo].[PROVEEDOR] ([IdProveedor_413BE], [Nombre_413BE], [Cuit_413BE], [Email_413BE], [Habilitado_413BE], [Dvh_413BE]) VALUES (11, N'Gasistas Matriculados SRL', N'30-70000011-1', N'contacto@gasistas.example.com', 0, 3)
+  SET IDENTITY_INSERT [dbo].[PROVEEDOR] OFF
+  INSERT [dbo].[PROVEEDOR_CATEGORIA] ([IdProveedor_413BE], [IdCategoria_413BE], [Dvh_413BE]) VALUES (8, 6, 67)
+  INSERT [dbo].[PROVEEDOR_CATEGORIA] ([IdProveedor_413BE], [IdCategoria_413BE], [Dvh_413BE]) VALUES (9, 7, 70)
+  INSERT [dbo].[PROVEEDOR_CATEGORIA] ([IdProveedor_413BE], [IdCategoria_413BE], [Dvh_413BE]) VALUES (10, 8, 63)
+  INSERT [dbo].[PROVEEDOR_CATEGORIA] ([IdProveedor_413BE], [IdCategoria_413BE], [Dvh_413BE]) VALUES (11, 4, 57)
+END
+GO
+
+-- 10.3 Reclamos, derivaciones y cierres adicionales
+IF NOT EXISTS (SELECT 1 FROM RECLAMO WHERE IdReclamo_413BE = 29)
+BEGIN
+  SET IDENTITY_INSERT [dbo].[RECLAMO] ON
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (29, 1, 3, 3, NULL, N'Ascensor', NULL, N'El ascensor hace ruidos al frenar', CAST(N'2026-09-26T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'COMUN_413BE', 0, 68)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (30, 1, 5, 2, NULL, N'Hall de entrada', NULL, N'Luces del hall de entrada quemadas', CAST(N'2026-09-27T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'COMUN_413BE', 0, 92)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (31, 1, 2, 2, NULL, N'Hall de entrada', 30, N'Se vuelven a apagar las luces del hall', CAST(N'2026-10-06T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'URGENTE_413BE', N'COMUN_413BE', 1, 42)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (32, 1, 6, 2, NULL, N'Hall de entrada', 30, N'Falla el timbre y la luz del hall otra vez', CAST(N'2026-10-19T12:00:00.000' AS DateTime), N'DERIVADO_413BE', N'URGENTE_413BE', N'COMUN_413BE', 1, 68)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (33, 2, 7, 1, 7, NULL, NULL, N'Pérdida de agua bajo la mesada', CAST(N'2026-10-01T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 29)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (34, 2, 8, 1, 8, NULL, NULL, N'Pérdida en el baño principal', CAST(N'2026-10-04T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'URGENTE_413BE', N'PARTICULAR_413BE', 0, 40)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (35, 2, 9, 2, 9, NULL, NULL, N'Disyuntor que salta al usar el horno', CAST(N'2026-10-08T12:00:00.000' AS DateTime), N'DERIVADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 84)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (36, 2, 11, 5, 11, NULL, NULL, N'No abre la cerradura de la cochera', CAST(N'2026-10-12T12:00:00.000' AS DateTime), N'CLASIFICADO_413BE', N'BAJA_413BE', N'PARTICULAR_413BE', 0, 40)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (37, 2, 12, 3, NULL, N'Ascensor', 27, N'El ascensor volvió a quedar detenido', CAST(N'2026-10-15T12:00:00.000' AS DateTime), N'CLASIFICADO_413BE', N'URGENTE_413BE', N'COMUN_413BE', 1, 73)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (38, 2, 10, 1, NULL, N'Sala de máquinas', NULL, N'Gotera sobre el tablero de la sala de máquinas', CAST(N'2026-10-22T12:00:00.000' AS DateTime), N'PENDIENTE_CLASIFICACION_413BE', NULL, NULL, 0, 45)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (39, 3, 19, 8, NULL, N'Terraza', NULL, N'Filtración en la terraza hacia el último piso', CAST(N'2026-09-28T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'COMUN_413BE', 0, 31)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (40, 3, 21, 8, NULL, N'Terraza', 39, N'La filtración de la terraza reaparece', CAST(N'2026-10-07T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'URGENTE_413BE', N'COMUN_413BE', 1, 8)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (41, 3, 22, 8, NULL, N'Terraza', 39, N'Manchas de humedad en el cielorraso por la terraza', CAST(N'2026-10-17T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'URGENTE_413BE', N'COMUN_413BE', 1, 17)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (42, 3, 20, 8, NULL, N'Terraza', 39, N'Entra agua por la claraboya de la terraza', CAST(N'2026-10-28T12:00:00.000' AS DateTime), N'DERIVADO_413BE', N'URGENTE_413BE', N'COMUN_413BE', 1, 96)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (43, 3, 23, 3, NULL, N'Ascensor', NULL, N'El ascensor no baja a la cochera', CAST(N'2026-10-09T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'COMUN_413BE', 0, 66)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (44, 3, 24, 7, NULL, N'Palier', NULL, N'Falta de limpieza en palieres y escalera', CAST(N'2026-10-20T12:00:00.000' AS DateTime), N'CLASIFICADO_413BE', N'BAJA_413BE', N'COMUN_413BE', 0, 3)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (45, 3, 19, 6, 15, NULL, NULL, N'Pintura descascarada en el balcón', CAST(N'2026-10-30T12:00:00.000' AS DateTime), N'PENDIENTE_CLASIFICACION_413BE', NULL, NULL, 0, 60)
+  INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (46, 3, 21, 1, NULL, N'Patio', NULL, N'Pérdida en la canilla del patio', CAST(N'2026-11-03T12:00:00.000' AS DateTime), N'PENDIENTE_CLASIFICACION_413BE', NULL, NULL, 0, 50)
+  SET IDENTITY_INSERT [dbo].[RECLAMO] OFF
+  SET IDENTITY_INSERT [dbo].[DERIVACION] ON
+  INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (23, 29, 6, CAST(N'2026-09-28T12:00:00.000' AS DateTime), 7, 21)
+  INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (24, 30, 4, CAST(N'2026-09-29T12:00:00.000' AS DateTime), 7, 30)
+  INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (25, 31, 5, CAST(N'2026-10-08T12:00:00.000' AS DateTime), 2, 50)
+  INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (26, 32, 4, CAST(N'2026-10-21T12:00:00.000' AS DateTime), 2, 88)
+  INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (27, 33, 3, CAST(N'2026-10-03T12:00:00.000' AS DateTime), 7, 17)
+  INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (28, 34, 2, CAST(N'2026-10-06T12:00:00.000' AS DateTime), 2, 87)
+  INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (29, 35, 5, CAST(N'2026-10-10T12:00:00.000' AS DateTime), 7, 59)
+  INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (30, 39, 10, CAST(N'2026-09-30T12:00:00.000' AS DateTime), 7, 88)
+  INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (31, 40, 10, CAST(N'2026-10-09T12:00:00.000' AS DateTime), 2, 69)
+  INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (32, 41, 10, CAST(N'2026-10-19T12:00:00.000' AS DateTime), 2, 1)
+  INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (33, 42, 10, CAST(N'2026-10-30T12:00:00.000' AS DateTime), 2, 78)
+  INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (34, 43, 6, CAST(N'2026-10-11T12:00:00.000' AS DateTime), 7, 88)
+  SET IDENTITY_INSERT [dbo].[DERIVACION] OFF
+  SET IDENTITY_INSERT [dbo].[CIERRE_RECLAMO] ON
+  INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (20, 29, CAST(N'2026-10-04T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0002-00000001', N'Área común: Ascensor', CAST(185000.00 AS Decimal(18, 2)), 21)
+  INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (21, 30, CAST(N'2026-10-05T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0002-00000002', N'Área común: Hall de entrada', CAST(32000.00 AS Decimal(18, 2)), 20)
+  INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (22, 31, CAST(N'2026-10-10T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0002-00000003', N'Área común: Hall de entrada', CAST(41000.00 AS Decimal(18, 2)), 91)
+  INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (23, 33, CAST(N'2026-10-09T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0002-00000004', N'Unidad funcional 7', CAST(28500.00 AS Decimal(18, 2)), 26)
+  INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (24, 34, CAST(N'2026-10-08T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0002-00000005', N'Unidad funcional 8', CAST(52000.00 AS Decimal(18, 2)), 14)
+  INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (25, 39, CAST(N'2026-10-06T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0002-00000006', N'Área común: Terraza', CAST(420000.00 AS Decimal(18, 2)), 6)
+  INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (26, 40, CAST(N'2026-10-11T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0002-00000007', N'Área común: Terraza', CAST(380000.00 AS Decimal(18, 2)), 33)
+  INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (27, 41, CAST(N'2026-10-21T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0002-00000008', N'Área común: Terraza', CAST(150000.00 AS Decimal(18, 2)), 65)
+  INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (28, 43, CAST(N'2026-10-17T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'A-0002-00000009', N'Área común: Ascensor', CAST(96000.00 AS Decimal(18, 2)), 57)
+  SET IDENTITY_INSERT [dbo].[CIERRE_RECLAMO] OFF
+END
+GO
+
+-- 10.4 PN02: propuestas de asamblea, ordenes del dia y temas
+IF NOT EXISTS (SELECT 1 FROM PROPUESTA_ASAMBLEA WHERE IdPropuesta_413BE = 1)
+BEGIN
+  SET IDENTITY_INSERT [dbo].[PROPUESTA_ASAMBLEA] ON
+  INSERT [dbo].[PROPUESTA_ASAMBLEA] ([IdPropuesta_413BE], [IdConsorcio_413BE], [FechaGeneracion_413BE], [PeriodoDesde_413BE], [PeriodoHasta_413BE], [UmbralRepeticion_413BE], [Estado_413BE], [Dvh_413BE]) VALUES (1, 1, CAST(N'2026-10-05T10:30:00.000' AS DateTime), CAST(N'2026-06-01T00:00:00.000' AS DateTime), CAST(N'2026-09-30T00:00:00.000' AS DateTime), 3, N'CON_ORDEN_DIA_413BE', 22)
+  INSERT [dbo].[PROPUESTA_ASAMBLEA] ([IdPropuesta_413BE], [IdConsorcio_413BE], [FechaGeneracion_413BE], [PeriodoDesde_413BE], [PeriodoHasta_413BE], [UmbralRepeticion_413BE], [Estado_413BE], [Dvh_413BE]) VALUES (2, 2, CAST(N'2026-10-12T11:15:00.000' AS DateTime), CAST(N'2026-07-01T00:00:00.000' AS DateTime), CAST(N'2026-09-30T00:00:00.000' AS DateTime), 3, N'CON_ORDEN_DIA_413BE', 31)
+  INSERT [dbo].[PROPUESTA_ASAMBLEA] ([IdPropuesta_413BE], [IdConsorcio_413BE], [FechaGeneracion_413BE], [PeriodoDesde_413BE], [PeriodoHasta_413BE], [UmbralRepeticion_413BE], [Estado_413BE], [Dvh_413BE]) VALUES (3, 3, CAST(N'2026-10-26T09:45:00.000' AS DateTime), CAST(N'2026-09-01T00:00:00.000' AS DateTime), CAST(N'2026-10-31T00:00:00.000' AS DateTime), 2, N'GENERADA_413BE', 75)
+  INSERT [dbo].[PROPUESTA_ASAMBLEA] ([IdPropuesta_413BE], [IdConsorcio_413BE], [FechaGeneracion_413BE], [PeriodoDesde_413BE], [PeriodoHasta_413BE], [UmbralRepeticion_413BE], [Estado_413BE], [Dvh_413BE]) VALUES (4, 1, CAST(N'2026-09-02T16:00:00.000' AS DateTime), CAST(N'2026-03-01T00:00:00.000' AS DateTime), CAST(N'2026-08-31T00:00:00.000' AS DateTime), 3, N'CON_ORDEN_DIA_413BE', 91)
+  INSERT [dbo].[PROPUESTA_ASAMBLEA] ([IdPropuesta_413BE], [IdConsorcio_413BE], [FechaGeneracion_413BE], [PeriodoDesde_413BE], [PeriodoHasta_413BE], [UmbralRepeticion_413BE], [Estado_413BE], [Dvh_413BE]) VALUES (5, 2, CAST(N'2026-10-30T18:20:00.000' AS DateTime), CAST(N'2026-08-01T00:00:00.000' AS DateTime), CAST(N'2026-10-30T00:00:00.000' AS DateTime), 2, N'GENERADA_413BE', 77)
+  SET IDENTITY_INSERT [dbo].[PROPUESTA_ASAMBLEA] OFF
+  SET IDENTITY_INSERT [dbo].[ORDEN_DIA] ON
+  INSERT [dbo].[ORDEN_DIA] ([IdOrdenDia_413BE], [IdPropuesta_413BE], [FechaAsamblea_413BE], [FechaRegistro_413BE], [Dvh_413BE]) VALUES (1, 1, CAST(N'2026-11-20T19:00:00.000' AS DateTime), CAST(N'2026-10-08T15:20:00.000' AS DateTime), 41)
+  INSERT [dbo].[ORDEN_DIA] ([IdOrdenDia_413BE], [IdPropuesta_413BE], [FechaAsamblea_413BE], [FechaRegistro_413BE], [Dvh_413BE]) VALUES (2, 2, CAST(N'2026-11-27T19:30:00.000' AS DateTime), CAST(N'2026-10-14T10:05:00.000' AS DateTime), 37)
+  INSERT [dbo].[ORDEN_DIA] ([IdOrdenDia_413BE], [IdPropuesta_413BE], [FechaAsamblea_413BE], [FechaRegistro_413BE], [Dvh_413BE]) VALUES (3, 4, CAST(N'2026-09-25T19:00:00.000' AS DateTime), CAST(N'2026-09-05T12:40:00.000' AS DateTime), 7)
+  SET IDENTITY_INSERT [dbo].[ORDEN_DIA] OFF
+  SET IDENTITY_INSERT [dbo].[TEMA_PROPUESTO] ON
+  INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (1, 1, 3, NULL, N'Ascensor', 5, CAST(310000.00 AS Decimal(18, 2)), 12.5, CAST(180000.00 AS Decimal(18, 2)), 1, 1, 19)
+  INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (2, 1, 2, NULL, N'Hall de entrada', 3, CAST(105500.00 AS Decimal(18, 2)), 9.5, CAST(60000.00 AS Decimal(18, 2)), 1, 2, 86)
+  INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (3, 1, 1, 3, NULL, 4, CAST(96000.00 AS Decimal(18, 2)), 15, CAST(70000.00 AS Decimal(18, 2)), NULL, NULL, 49)
+  INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (4, 2, 1, 7, NULL, 3, CAST(134000.00 AS Decimal(18, 2)), 11, CAST(90000.00 AS Decimal(18, 2)), 2, 1, 33)
+  INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (5, 2, 3, NULL, N'Ascensor', 3, CAST(210000.00 AS Decimal(18, 2)), 14.5, CAST(150000.00 AS Decimal(18, 2)), 2, 2, 3)
+  INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (6, 2, 2, 9, NULL, 3, CAST(64000.00 AS Decimal(18, 2)), 8, CAST(45000.00 AS Decimal(18, 2)), NULL, NULL, 65)
+  INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (7, 3, 8, NULL, N'Terraza', 4, CAST(950000.00 AS Decimal(18, 2)), 10.5, CAST(720000.00 AS Decimal(18, 2)), NULL, NULL, 76)
+  INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (8, 3, 3, NULL, N'Ascensor', 2, CAST(96000.00 AS Decimal(18, 2)), 8, CAST(80000.00 AS Decimal(18, 2)), NULL, NULL, 66)
+  INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (9, 3, 7, NULL, N'Palier', 2, CAST(38000.00 AS Decimal(18, 2)), 6, CAST(30000.00 AS Decimal(18, 2)), NULL, NULL, 23)
+  INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (10, 4, 1, 3, NULL, 5, CAST(172000.00 AS Decimal(18, 2)), 13.5, CAST(120000.00 AS Decimal(18, 2)), 3, 1, 23)
+  INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (11, 4, 4, 5, NULL, 3, CAST(88000.00 AS Decimal(18, 2)), 7, CAST(55000.00 AS Decimal(18, 2)), 3, 2, 12)
+  INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (12, 4, 2, NULL, N'Hall de entrada', 3, CAST(77000.00 AS Decimal(18, 2)), 10, CAST(50000.00 AS Decimal(18, 2)), NULL, NULL, 82)
+  INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (13, 5, 3, NULL, N'Ascensor', 3, CAST(275000.00 AS Decimal(18, 2)), 16, CAST(200000.00 AS Decimal(18, 2)), NULL, NULL, 22)
+  INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (14, 5, 1, 9, NULL, 2, CAST(83000.00 AS Decimal(18, 2)), 12, CAST(60000.00 AS Decimal(18, 2)), NULL, NULL, 66)
+  SET IDENTITY_INSERT [dbo].[TEMA_PROPUESTO] OFF
+END
+GO
+
+-- 10.5 Digitos verificadores verticales de las tablas ampliadas
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_Valor] = 30 WHERE [DVV_Tabla] = N'CONSORCIO'
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_Valor] = 77 WHERE [DVV_Tabla] = N'UNIDAD_FUNCIONAL'
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_Valor] = 22 WHERE [DVV_Tabla] = N'CONSORCISTA'
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_Valor] = 46 WHERE [DVV_Tabla] = N'CATEGORIA'
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_Valor] = 16 WHERE [DVV_Tabla] = N'PROVEEDOR'
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_Valor] = 20 WHERE [DVV_Tabla] = N'PROVEEDOR_CATEGORIA'
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_Valor] = 96 WHERE [DVV_Tabla] = N'RECLAMO'
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_Valor] = 63 WHERE [DVV_Tabla] = N'DERIVACION'
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_Valor] = 58 WHERE [DVV_Tabla] = N'CIERRE_RECLAMO'
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DigitoVerificadorVertical] WHERE [DVV_Tabla] = N'PROPUESTA_ASAMBLEA')
+INSERT [dbo].[DigitoVerificadorVertical] ([DVV_ID], [DVV_Tabla], [DVV_Atributo], [DVV_Valor], [DVV_FechaCalculo]) VALUES (N'71476723-1e88-5105-a947-c1142d06b80e', N'PROPUESTA_ASAMBLEA', N'*', 88, CAST(N'2026-11-06T12:00:00.000' AS DateTime))
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DigitoVerificadorVertical] WHERE [DVV_Tabla] = N'ORDEN_DIA')
+INSERT [dbo].[DigitoVerificadorVertical] ([DVV_ID], [DVV_Tabla], [DVV_Atributo], [DVV_Valor], [DVV_FechaCalculo]) VALUES (N'ef93bf6f-7ded-5ba6-bb28-f0f14d804ba6', N'ORDEN_DIA', N'*', 39, CAST(N'2026-11-06T12:00:00.000' AS DateTime))
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DigitoVerificadorVertical] WHERE [DVV_Tabla] = N'TEMA_PROPUESTO')
+INSERT [dbo].[DigitoVerificadorVertical] ([DVV_ID], [DVV_Tabla], [DVV_Atributo], [DVV_Valor], [DVV_FechaCalculo]) VALUES (N'0e552cbc-734d-5607-a43c-4d2286eb6ebc', N'TEMA_PROPUESTO', N'*', 42, CAST(N'2026-11-06T12:00:00.000' AS DateTime))
+GO
+
+-- ===== T06.B: tabla PROVEEDOR_C y triggers =====
+USE [AppBaseDB]
+GO
+-- 1) Tabla PROVEEDOR_C
+IF OBJECT_ID(N'dbo.PROVEEDOR_C', N'U') IS NULL
+BEGIN
+  CREATE TABLE dbo.PROVEEDOR_C (
+    IdProveedorC_413BE INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_PROVEEDOR_C PRIMARY KEY,
+    IdProveedor_413BE  INT           NOT NULL CONSTRAINT FK_PROVEEDOR_C_PROVEEDOR REFERENCES dbo.PROVEEDOR(IdProveedor_413BE),
+    Nombre_413BE       NVARCHAR(150) NOT NULL,
+    Cuit_413BE         NVARCHAR(20)  NOT NULL,
+    Email_413BE        NVARCHAR(150) NOT NULL,
+    Habilitado_413BE   BIT           NOT NULL,
+    Fecha_413BE        DATE          NOT NULL CONSTRAINT DF_PROVEEDOR_C_Fecha DEFAULT CAST(GETDATE() AS DATE),
+    Hora_413BE         TIME(0)       NOT NULL CONSTRAINT DF_PROVEEDOR_C_Hora  DEFAULT CAST(GETDATE() AS TIME(0)),
+    Act_413BE          BIT           NOT NULL CONSTRAINT DF_PROVEEDOR_C_Act   DEFAULT 1
+  );
+  CREATE INDEX IX_PROVEEDOR_C_Proveedor ON dbo.PROVEEDOR_C (IdProveedor_413BE, Act_413BE);
+END
+GO
+
+-- 2) Trigger sobre PROVEEDOR: alta y modificacion (incluye baja/alta logica y restauraciones)
+CREATE OR ALTER TRIGGER dbo.TR_PROVEEDOR_C ON dbo.PROVEEDOR AFTER INSERT, UPDATE AS
+BEGIN
+  SET NOCOUNT ON;
+  DECLARE @cambios TABLE (IdProveedor INT PRIMARY KEY);
+
+  -- Proveedores nuevos, o existentes cuyos datos de negocio cambiaron (se ignora el Dvh)
+  INSERT INTO @cambios (IdProveedor)
+  SELECT i.IdProveedor_413BE
+  FROM inserted i
+  LEFT JOIN deleted d ON d.IdProveedor_413BE = i.IdProveedor_413BE
+  WHERE d.IdProveedor_413BE IS NULL
+     OR EXISTS (SELECT i.Nombre_413BE, i.Cuit_413BE, i.Email_413BE, i.Habilitado_413BE
+                EXCEPT
+                SELECT d.Nombre_413BE, d.Cuit_413BE, d.Email_413BE, d.Habilitado_413BE);
+
+  IF NOT EXISTS (SELECT 1 FROM @cambios) RETURN;
+
+  -- La version anterior pasa a historica
+  UPDATE c SET Act_413BE = 0
+  FROM dbo.PROVEEDOR_C c
+  JOIN @cambios x ON x.IdProveedor = c.IdProveedor_413BE
+  WHERE c.Act_413BE = 1;
+
+  -- La nueva version queda vigente, con fecha y hora del cambio
+  INSERT INTO dbo.PROVEEDOR_C (IdProveedor_413BE, Nombre_413BE, Cuit_413BE, Email_413BE, Habilitado_413BE, Fecha_413BE, Hora_413BE, Act_413BE)
+  SELECT i.IdProveedor_413BE, i.Nombre_413BE, i.Cuit_413BE, i.Email_413BE, i.Habilitado_413BE,
+         CAST(GETDATE() AS DATE), CAST(GETDATE() AS TIME(0)), 1
+  FROM inserted i
+  JOIN @cambios x ON x.IdProveedor = i.IdProveedor_413BE;
+END
+GO
+
+-- 3) A PROVEEDOR_C no se le elimina ningun registro
+CREATE OR ALTER TRIGGER dbo.TR_PROVEEDOR_C_SIN_BORRADO ON dbo.PROVEEDOR_C INSTEAD OF DELETE AS
+BEGIN
+  SET NOCOUNT ON;
+  RAISERROR (N'PROVEEDOR_C no admite borrado de registros: solo se agregan versiones o se modifica Act_413BE.', 16, 1);
+END
+GO
+
+-- 4) Version inicial para los proveedores que ya existian antes de instalar el trigger
+INSERT INTO dbo.PROVEEDOR_C (IdProveedor_413BE, Nombre_413BE, Cuit_413BE, Email_413BE, Habilitado_413BE, Fecha_413BE, Hora_413BE, Act_413BE)
+SELECT p.IdProveedor_413BE, p.Nombre_413BE, p.Cuit_413BE, p.Email_413BE, p.Habilitado_413BE,
+       CAST(GETDATE() AS DATE), CAST(GETDATE() AS TIME(0)), 1
+FROM dbo.PROVEEDOR p
+WHERE NOT EXISTS (SELECT 1 FROM dbo.PROVEEDOR_C c WHERE c.IdProveedor_413BE = p.IdProveedor_413BE);
+GO
+
+-- ===== Historial de ejemplo de proveedores (versiones anteriores en PROVEEDOR_C) =====
+IF NOT EXISTS (SELECT 1 FROM dbo.PROVEEDOR_C WHERE Act_413BE = 0)
+BEGIN
+  INSERT INTO dbo.PROVEEDOR_C (IdProveedor_413BE, Nombre_413BE, Cuit_413BE, Email_413BE, Habilitado_413BE, Fecha_413BE, Hora_413BE, Act_413BE) VALUES
+  (2, N'Aguas y Cañerías SA', N'30-70000002-2', N'contacto@aguasycanos.example.com', 1, '2026-08-14', '10:15:00', 0),
+  (3, N'Plomería Rápida', N'30-70000003-3', N'info@plomeriaexpress.example.com', 1, '2026-07-02', '09:40:00', 0),
+  (3, N'Plomería Express', N'30-70000003-3', N'info@plomeriaexpress.example.com', 1, '2026-08-21', '16:05:00', 0),
+  (5, N'Instalaciones Integrales SA', N'30-70000005-5', N'info@instintegrales.example.com', 1, '2026-09-03', '11:30:00', 0),
+  (7, N'Cerrajería Llave Maestra', N'30-70000007-7', N'contacto@llavemaestra.example.com', 0, '2026-07-20', '14:10:00', 0),
+  (11, N'Gasistas Matriculados SRL', N'30-70000011-1', N'contacto@gasistas.example.com', 1, '2026-10-10', '17:25:00', 0);
+END
+GO
+
+-- ===== v2.1: etiquetas nuevas, Ayuda en linea (D02) y Reporte Global =====
+USE [AppBaseDB]
+GO
+-- Botón para exportar a PDF el historial de propuestas
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_hisprop_btnExportarHistorial')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_hisprop_btnExportarHistorial');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Exportar a PDF' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_hisprop_btnExportarHistorial' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Export to PDF' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_hisprop_btnExportarHistorial' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+
+-- Botón para volver a habilitar un usuario dado de baja
+IF NOT EXISTS (SELECT 1 FROM Etiqueta WHERE Etiqueta_Descripcion = N'btn_usu_btnHabilitarUsuario')
+INSERT INTO Etiqueta (Etiqueta_ID, Etiqueta_Descripcion) VALUES (NEWID(), N'btn_usu_btnHabilitarUsuario');
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Habilitar usuario' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_usu_btnHabilitarUsuario' AND I.Idioma_Descripcion = N'Español'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+INSERT INTO Traduccion (Etiqueta_ID, Idioma_ID, Traduccion_Traduccion)
+SELECT E.Etiqueta_ID, I.Idioma_ID, N'Enable user' FROM Etiqueta E CROSS JOIN Idioma I
+WHERE E.Etiqueta_Descripcion = N'btn_usu_btnHabilitarUsuario' AND I.Idioma_Descripcion = N'Inglés'
+AND NOT EXISTS (SELECT 1 FROM Traduccion T WHERE T.Etiqueta_ID = E.Etiqueta_ID AND T.Idioma_ID = I.Idioma_ID);
+GO
+
+
+-- ============================================================================
+-- D02 - Ayuda en línea (solo usuario final): claves de traducción en español e inglés
+-- Idempotente. Etiqueta y Traduccion no tienen DVH ni participan del DVV.
+-- ============================================================================
+SET NOCOUNT ON
+GO
+BEGIN TRANSACTION
+DECLARE @Claves TABLE (Clave nvarchar(50) NOT NULL PRIMARY KEY, TextoEs nvarchar(300) NOT NULL, TextoEn nvarchar(300) NOT NULL)
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_grp_pri', N'Primeros pasos', N'Getting started')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_grp_rec', N'Reclamos', N'Claims')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_grp_asa', N'Asambleas', N'Assemblies')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_grp_faq', N'Preguntas frecuentes', N'Frequently asked questions')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_grp_sop', N'Soporte', N'Support')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_pri_ingreso_tit', N'Ingreso al sistema', N'Signing in')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_pri_ingreso_1', N'Desde Sesión > Iniciar Sesión se abre la pantalla de ingreso. Escriba su usuario y su contraseña y presione Ingresar.', N'Use Session > Log In to open the sign-in screen. Type your user and password and press Enter.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_pri_ingreso_2', N'Al ingresar, el menú muestra solo las opciones para las que su usuario tiene permiso.', N'After signing in, the menu shows only the options your user has permission for.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_pri_ingreso_3', N'Si la contraseña es incorrecta se muestra Contraseña Incorrecta. Después de 4 intentos fallidos, el siguiente intento bloquea la cuenta (Usuario Bloqueado).', N'If the password is wrong, Incorrect Password is shown. After 4 failed attempts, the next attempt locks the account (Blocked User).')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_pri_ingreso_4', N'Una cuenta bloqueada solo la puede desbloquear un administrador desde el menú Usuarios.', N'A locked account can only be unlocked by an administrator from the Users menu.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_pri_ingreso_5', N'Si el usuario fue dado de baja se muestra Usuario Dado de Baja y no se permite el ingreso.', N'If the user was deactivated, User deactivated is shown and sign-in is not allowed.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_pri_ingreso_6', N'Al ingresar se verifica la integridad de los datos. Si falla, solo un administrador puede ingresar y resolverlo.', N'Data integrity is checked at sign-in. If it fails, only an administrator can sign in and resolve it.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_pri_ingreso_7', N'Para salir use Sesión > Cerrar Sesión: se cierran todas las pantallas abiertas.', N'To leave, use Session > Log Out: all open screens are closed.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_pri_recorrido_tit', N'Recorrido general', N'General walkthrough')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_pri_recorrido_1', N'El circuito principal de un reclamo tiene cuatro pasos, cada uno en el menú Reclamos o Asambleas.', N'The main claim workflow has four steps, each one in the Claims or Assemblies menu.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_pri_recorrido_2', N'1. Cargar y clasificar reclamo: se registra el reclamo (queda Pendiente de clasificación) y luego se le asigna categoría, tipo de imputación y prioridad (queda Clasificado).', N'1. Register and classify claim: the claim is registered (Pending classification) and then given a category, charge type and priority (Classified).')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_pri_recorrido_3', N'2. Buscar y derivar proveedor: se elige un proveedor de la categoría y un plazo de resolución; el reclamo queda Derivado.', N'2. Find and assign supplier: a supplier of the category and a resolution deadline are chosen; the claim becomes Assigned.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_pri_recorrido_4', N'3. Cerrar reclamo e imputar costo: se carga el informe y el costo, y el sistema imputa el gasto; el reclamo queda Cerrado.', N'3. Close claim and charge cost: the report and cost are entered and the system charges the expense; the claim becomes Closed.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_pri_recorrido_5', N'4. Armar la asamblea: Generar propuesta agrupa los reclamos repetidos y Definir orden del día fija los temas y la fecha de la asamblea.', N'4. Prepare the assembly: Generate proposal groups repeated claims and Define agenda sets the topics and the assembly date.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_pri_recorrido_6', N'Presione F1 o el ícono ? del menú en cualquier pantalla para ver la ayuda de esa pantalla.', N'Press F1 or the ? icon in the menu on any screen to see the help for that screen.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_cargar_tit', N'Cargar y clasificar reclamo', N'Register and classify claim')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_cargar_1', N'Registra un reclamo nuevo y clasifica los reclamos pendientes.', N'Registers a new claim and classifies pending claims.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_cargar_2', N'Carga: elija el consorcio, indique si es de una unidad funcional o de un área común, elija el consorcista y la categoría, escriba la descripción y, si quiere, adjunte fotos. Presione Guardar.', N'Registration: choose the building, say whether it concerns a unit or a common area, choose the resident and the category, write the description and optionally attach photos. Press Save.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_cargar_3', N'Si en los últimos 30 días se cerró un reclamo del mismo consorcio, categoría y ubicación, el sistema pregunta si es una reincidencia y, si confirma, lo marca como reincidente.', N'If a claim with the same building, category and location was closed in the last 30 days, the system asks whether it is a recurrence and, if you confirm, marks it as recurrent.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_cargar_4', N'Clasificación: seleccione un reclamo de la grilla de pendientes, revise la categoría y elija el tipo de imputación (Común o Particular) y la prioridad (Urgente, Media o Baja). Presione Clasificar.', N'Classification: select a claim in the pending grid, review the category and choose the charge type (Common or Private) and the priority (Urgent, Medium or Low). Press Classify.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_cargar_5', N'La prioridad define el plazo propuesto al derivar: Urgente 2 días, Media 7 días y Baja 15 días.', N'The priority sets the proposed deadline when assigning: Urgent 2 days, Medium 7 days and Low 15 days.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_cargar_6', N'Errores comunes: el botón Guardar sigue deshabilitado hasta completar todos los datos; un gasto Particular sobre un área común da el error El gasto particular requiere una unidad funcional.', N'Common errors: the Save button stays disabled until all data is complete; a Private charge on a common area gives the error A private charge requires a unit.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_derivar_tit', N'Buscar y derivar proveedor', N'Find and assign supplier')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_derivar_1', N'Asigna un proveedor a un reclamo clasificado.', N'Assigns a supplier to a classified claim.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_derivar_2', N'Seleccione un reclamo de Reclamos clasificados: se listan los proveedores habilitados para su categoría.', N'Select a claim in Classified claims: the enabled suppliers for its category are listed.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_derivar_3', N'Las pestañas ordenan los proveedores: Mejor precio (precio promedio), Más rápido (tiempo promedio), Más eficiente (menor tasa de reincidencia) y Recomendado (puntaje que combina los tres). Los proveedores sin historial aparecen al final.', N'The tabs sort the suppliers: Best price (average price), Fastest (average time), Most efficient (lowest recurrence rate) and Recommended (a score combining all three). Suppliers with no history appear last.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_derivar_4', N'El plazo de resolución (SLA) se propone según la prioridad: Urgente 2, Media 7 y Baja 15 días. Puede modificarlo antes de presionar Derivar.', N'The resolution deadline (SLA) is proposed from the priority: Urgent 2, Medium 7 and Low 15 days. You can change it before pressing Assign.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_derivar_5', N'Si no hay proveedores para la categoría, use Registrar proveedor para dar de alta uno nuevo.', N'If there are no suppliers for the category, use Register supplier to add a new one.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_derivar_6', N'Errores comunes: un plazo de cero días da el error Ingrese un plazo de resolución válido.', N'Common errors: a deadline of zero days gives the error Enter a valid resolution deadline.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_registrarProv_tit', N'Registrar proveedor', N'Register supplier')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_registrarProv_1', N'Da de alta un proveedor nuevo desde la pantalla Buscar y derivar proveedor.', N'Adds a new supplier from the Find and assign supplier screen.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_registrarProv_2', N'Complete nombre, CUIT y email, marque al menos una categoría de trabajo y presione Guardar.', N'Fill in name, CUIT (tax id) and email, check at least one work category and press Save.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_registrarProv_3', N'Al guardar, el proveedor queda habilitado y aparece en la lista de la categoría del reclamo.', N'When saved, the supplier is enabled and appears in the list for the claim category.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_registrarProv_4', N'Errores comunes: Complete nombre, CUIT, email y al menos una categoría; Ingrese un email válido; Ya existe un proveedor registrado con ese CUIT.', N'Common errors: Fill in name, CUIT, email and at least one category; Enter a valid email; A supplier with that CUIT already exists.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_cerrar_tit', N'Cerrar reclamo e imputar costo', N'Close claim and charge cost')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_cerrar_1', N'Cierra un reclamo derivado y registra a qué cuenta se imputa el costo.', N'Closes an assigned claim and records which account the cost is charged to.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_cerrar_2', N'Seleccione un reclamo de Reclamos derivados, escriba el informe de resolución, el número de factura (opcional) y el costo.', N'Select a claim in Assigned claims, write the resolution report, the invoice number (optional) and the cost.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_cerrar_3', N'Presione Cerrar reclamo para ver la imputación resultante: un gasto Particular se imputa a la unidad funcional y uno Común al registro general del consorcio.', N'Press Close claim to see the resulting charge: a Private expense is charged to the unit and a Common one to the general account of the building.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_cerrar_4', N'Revise la cuenta y el monto y presione Confirmar cierre; con Cancelar vuelve atrás sin cerrar.', N'Check the account and the amount and press Confirm closing; Cancel goes back without closing.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_cerrar_5', N'Errores comunes: Complete el informe y un costo mayor a cero.', N'Common errors: Fill in the report and a cost greater than zero.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_historial_tit', N'Consultar historial y exportar a PDF', N'View history and export to PDF')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_historial_1', N'Consulta los reclamos con filtros y el desempeño histórico de cada proveedor.', N'Shows claims using filters and the historical performance of each supplier.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_historial_2', N'Elija consorcio, proveedor, categoría, estado y el rango de fechas, y presione Filtrar.', N'Choose building, supplier, category, status and the date range, and press Filter.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_historial_3', N'Exportar historial genera un PDF con los reclamos de la grilla.', N'Export history creates a PDF with the claims in the grid.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_historial_4', N'En Desempeño histórico por proveedor elija un proveedor, presione Ver desempeño y, si quiere, Exportar desempeño a PDF.', N'In Historical supplier performance choose a supplier, press View performance and optionally Export performance to PDF.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_historial_5', N'Errores comunes: La fecha desde no puede ser posterior a la fecha hasta.', N'Common errors: The from date cannot be later than the to date.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_generar_tit', N'Generar propuesta', N'Generate proposal')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_generar_1', N'Propone temas para la asamblea agrupando los reclamos repetidos de un consorcio.', N'Proposes assembly topics by grouping repeated claims of a building.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_generar_2', N'Elija el consorcio y el período (desde y hasta) y presione Analizar: se agrupan los reclamos por categoría y ubicación.', N'Choose the building and the period (from and to) and press Analyze: claims are grouped by category and location.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_generar_3', N'Solo quedan como candidatos los grupos con una cantidad de reclamos igual o mayor al umbral de repetición, que se lee de la clave UmbralRepeticion de Configuracion_413BE.txt.', N'Only groups with a number of claims equal to or above the repetition threshold remain as candidates; it is read from the UmbralRepeticion key in Configuracion_413BE.txt.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_generar_4', N'Ingrese el costo de solución de cada grupo y presione Calcular ahorro: el ranking ordena por ahorro estimado (costo acumulado menos costo de solución).', N'Enter the solution cost of each group and press Calculate savings: the ranking is sorted by estimated savings (accumulated cost minus solution cost).')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_generar_5', N'Presione Guardar propuesta; queda en estado Generada.', N'Press Save proposal; it is saved with status Generated.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_generar_6', N'Errores comunes: El consorcio no tiene reclamos en el período seleccionado; Ningún grupo de reclamos supera el umbral de repetición; Ingrese un costo de solución mayor a cero para cada grupo; Debe configurarse el umbral de repetición.', N'Common errors: The building has no claims in the selected period; No claim group reaches the repetition threshold; Enter a solution cost greater than zero for each group; The repetition threshold must be configured.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_orden_tit', N'Definir orden del día', N'Define agenda')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_orden_1', N'Convierte una propuesta generada en el orden del día de la asamblea.', N'Turns a generated proposal into the assembly agenda.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_orden_2', N'Seleccione una propuesta de Propuestas generadas: se listan sus temas.', N'Select a proposal in Generated proposals: its topics are listed.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_orden_3', N'Marque los temas a incluir y ordénelos con Subir y Bajar.', N'Check the topics to include and order them with Up and Down.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_orden_4', N'Elija la fecha de la asamblea y presione Registrar orden del día; la propuesta pasa a Con orden del día.', N'Choose the assembly date and press Register agenda; the proposal becomes With agenda.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_orden_5', N'Errores comunes: Incluya al menos un tema en el orden del día; La fecha de la asamblea no puede ser anterior a hoy.', N'Common errors: Include at least one topic in the agenda; The assembly date cannot be earlier than today.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_historial_tit', N'Historial de propuestas', N'Proposal history')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_historial_1', N'Consulta las propuestas generadas y sus temas.', N'Shows generated proposals and their topics.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_historial_2', N'Filtre por consorcio y estado y, si quiere, marque Desde y Hasta para limitar las fechas. Presione Filtrar.', N'Filter by building and status and optionally check From and To to limit the dates. Press Filter.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_historial_3', N'Al seleccionar una propuesta se muestran sus temas y, si tiene orden del día, la fecha de la asamblea.', N'Selecting a proposal shows its topics and, if it has an agenda, the assembly date.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_historial_4', N'Exportar a PDF genera un PDF con las propuestas de la grilla.', N'Export to PDF creates a PDF with the proposals in the grid.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_historial_5', N'Errores comunes: La fecha desde no puede ser posterior a la fecha hasta.', N'Common errors: The from date cannot be later than the to date.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_serializar_tit', N'Serializar y deserializar propuestas', N'Serialize and deserialize proposals')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_serializar_1', N'Guarda una propuesta en un archivo XML y lee archivos XML de propuestas.', N'Saves a proposal to an XML file and reads proposal XML files.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_serializar_2', N'Serializar: seleccione una propuesta y presione Serializar propuesta seleccionada; el archivo incluye sus temas y el orden del día si existe.', N'Serialize: select a proposal and press Serialize selected proposal; the file includes its topics and the agenda if there is one.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_serializar_3', N'Deserializar: presione Deserializar archivo y elija un XML; se muestran los datos leídos.', N'Deserialize: press Deserialize file and choose an XML; the data read is shown.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_serializar_4', N'Los datos deserializados solo se muestran: no se guardan en la base.', N'Deserialized data is only displayed: it is not saved to the database.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_asa_serializar_5', N'Errores comunes: Seleccione una propuesta; El archivo no es una propuesta válida.', N'Common errors: Select a proposal; The file is not a valid proposal.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_faq_bloqueada_tit', N'Mi cuenta está bloqueada', N'My account is locked')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_faq_bloqueada_1', N'El bloqueo de la cuenta ocurre al superar 4 intentos fallidos de contraseña.', N'The account lock happens after more than 4 failed password attempts.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_faq_bloqueada_2', N'Solo un administrador puede desbloquearla desde el menú Usuarios con el botón Desbloquear.', N'Only an administrator can unlock it from the Users menu with the Unlock button.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_faq_bloqueada_3', N'Luego vuelva a ingresar con su contraseña correcta.', N'Then sign in again with your correct password.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_faq_idioma_tit', N'Cómo cambiar el idioma', N'How to change the language')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_faq_idioma_1', N'Abra el menú Idioma y elija el idioma deseado.', N'Open the Language menu and choose the language.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_faq_idioma_2', N'Los menús, las pantallas abiertas y esta ayuda se actualizan al nuevo idioma.', N'Menus, open screens and this help are updated to the new language.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_faq_idioma_3', N'Los textos sin traducción se muestran en español.', N'Texts without a translation are shown in Spanish.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_faq_permiso_tit', N'El menú no muestra una opción', N'The menu does not show an option')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_faq_permiso_1', N'Las opciones del menú dependen de los permisos (patentes) de su usuario.', N'Menu options depend on the permissions of your user.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_faq_permiso_2', N'Si una opción no aparece o está deshabilitada, a su usuario le falta la patente correspondiente.', N'If an option is missing or disabled, your user lacks the matching permission.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_faq_permiso_3', N'Pida a un administrador que se la asigne desde Usuarios o Familias y vuelva a iniciar sesión.', N'Ask an administrator to assign it from Users or Families and sign in again.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_faq_pdf_tit', N'Cómo exportar a PDF', N'How to export to PDF')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_faq_pdf_1', N'Historial de reclamos: filtre y presione Exportar historial; para un proveedor use Ver desempeño y Exportar desempeño.', N'Claim history: filter and press Export history; for a supplier use View performance and Export performance.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_faq_pdf_2', N'Historial de propuestas: filtre y presione Exportar a PDF.', N'Proposal history: filter and press Export to PDF.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_faq_pdf_3', N'Elija dónde guardar el archivo; al terminar se muestra PDF generado correctamente.', N'Choose where to save the file; when finished PDF created successfully is shown.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_sop_soporte_tit', N'Cómo pedir ayuda', N'How to ask for help')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_sop_soporte_1', N'Antes de pedir ayuda revise el tema de la pantalla con F1 y las preguntas frecuentes.', N'Before asking for help, check the topic of the screen with F1 and the frequently asked questions.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_sop_soporte_2', N'Al pedir ayuda indique la pantalla, qué estaba haciendo y el mensaje exacto que apareció.', N'When asking for help, state the screen, what you were doing and the exact message shown.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'frm_ayu_frmAyuda', N'Ayuda', N'Help')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'lb_ayu_lblBuscar', N'Buscar:', N'Search:')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_ui_sinResultados', N'No se encontraron temas para la búsqueda.', N'No topics were found for the search.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_sop_contacto', N'Contacto de soporte: {0}', N'Support contact: {0}')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_sop_sinContacto', N'Consulte con el administrador del sistema.', N'Ask the system administrator.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_car_cboConsorcio', N'Consorcio donde se produjo el problema', N'Building where the problem occurred')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_car_rdoUnidadFuncional', N'Elija si el reclamo es de una unidad funcional', N'Choose if the claim concerns a unit')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_car_rdoAreaComun', N'Elija si el reclamo es de un área común', N'Choose if the claim concerns a common area')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_car_cboUnidadFuncional', N'Unidad funcional afectada', N'Affected unit')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_car_cboAreaComun', N'Área común afectada', N'Affected common area')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_car_cboConsorcista', N'Consorcista que hace el reclamo', N'Resident making the claim')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_car_cboCategoria', N'Tipo de problema (categoría)', N'Type of problem (category)')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_car_txtDescripcion', N'Describa el problema con detalle', N'Describe the problem in detail')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_car_btnAdjuntarFoto', N'Adjunte fotos del problema (opcional)', N'Attach photos of the problem (optional)')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_car_cboCategoriaClasif', N'Confirme o corrija la categoría', N'Confirm or correct the category')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_car_cboTipoImputacion', N'Común: lo paga el consorcio. Particular: lo paga la unidad', N'Common: paid by the building. Private: paid by the unit')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_car_cboPrioridad', N'Urgente 2 días, Media 7 días, Baja 15 días', N'Urgent 2 days, Medium 7 days, Low 15 days')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_der_dgvReclamos', N'Seleccione el reclamo clasificado a derivar', N'Select the classified claim to assign')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_der_tabCriterios', N'Criterio para ordenar los proveedores', N'Criterion to sort the suppliers')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_der_dgvProveedores', N'Seleccione el proveedor que resolverá el reclamo', N'Select the supplier who will solve the claim')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_der_numSla', N'Días para resolver; se propone según la prioridad', N'Days to solve; proposed from the priority')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_der_btnRegistrarProveedor', N'Dé de alta un proveedor si no hay ninguno adecuado', N'Add a supplier if none is suitable')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_cer_dgvDerivados', N'Seleccione el reclamo derivado a cerrar', N'Select the assigned claim to close')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_cer_txtInforme', N'Describa el trabajo realizado', N'Describe the work done')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_cer_txtNumeroFactura', N'Número de la factura del proveedor (opcional)', N'Supplier invoice number (optional)')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_cer_numCosto', N'Costo total, mayor a cero', N'Total cost, greater than zero')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_cer_btnCerrarReclamo', N'Calcula la imputación antes de confirmar', N'Calculates the charge before confirming')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_grp_con', N'Conceptos', N'Concepts')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_consorcio_tit', N'Consorcio', N'Building')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_consorcio_1', N'Un consorcio es el edificio administrado y es la base sobre la que se registran los reclamos.', N'A building (consortium) is the managed property and the basis on which claims are recorded.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_consorcio_2', N'Datos: nombre, dirección, cantidad de unidades y si está activo.', N'Data: name, address, number of units and whether it is active.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_consorcio_3', N'Agrupa las unidades funcionales y, a través de ellas, a los consorcistas.', N'It groups the units and, through them, the residents.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_consorcio_4', N'Al cargar un reclamo solo se pueden elegir consorcios activos.', N'When registering a claim, only active buildings can be chosen.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_consorcio_5', N'Los gastos de imputación Común se imputan al registro general del consorcio.', N'Common charges are charged to the general account of the building.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_consorcio_6', N'Las propuestas de temas para la asamblea se generan por consorcio y período.', N'Assembly topic proposals are generated per building and period.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_unidad_tit', N'Unidad funcional y área común', N'Unit and common area')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_unidad_1', N'Una unidad funcional es una parte privada del consorcio: departamento, cochera, local o baulera.', N'A unit is a private part of the building: apartment, garage, shop or storage room.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_unidad_2', N'Datos: consorcio al que pertenece, identificador (por ejemplo 1A) único dentro del consorcio, tipo y si está activa.', N'Data: the building it belongs to, an identifier (for example 1A) unique within the building, type and whether it is active.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_unidad_3', N'Un área común es un espacio compartido del consorcio: Hall, Ascensor, Terraza, Sala de máquinas, Cocheras, Salón de usos múltiples o Jardín.', N'A common area is a shared space of the building: Hall, Elevator, Roof terrace, Machine room, Garages, Multipurpose room or Garden.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_unidad_4', N'Todo reclamo indica su ubicación: una unidad funcional activa o un área común.', N'Every claim states its location: an active unit or a common area.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_unidad_5', N'Un gasto Particular solo se admite en reclamos de una unidad funcional y se imputa a esa unidad.', N'A Private charge is only allowed on claims of a unit and is charged to that unit.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_unidad_6', N'La ubicación, junto con la categoría, se usa para detectar reincidencias y para agrupar reclamos en la propuesta de asamblea.', N'The location, together with the category, is used to detect recurrences and to group claims in the assembly proposal.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_consorcista_tit', N'Consorcista', N'Resident')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_consorcista_1', N'Un consorcista es la persona vinculada a una unidad funcional del consorcio que hace los reclamos.', N'A resident is the person linked to a unit of the building who makes the claims.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_consorcista_2', N'Datos: unidad funcional, DNI, nombre, email, si es propietario o inquilino y si está activo.', N'Data: unit, DNI (id number), name, email, whether owner or tenant and whether active.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_consorcista_3', N'Cada reclamo queda asociado al consorcista que lo hizo.', N'Each claim is linked to the resident who made it.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_consorcista_4', N'En un reclamo de unidad funcional se elige entre los consorcistas activos de esa unidad; en uno de área común, entre los consorcistas activos de todo el consorcio.', N'For a unit claim you choose among the active residents of that unit; for a common area claim, among the active residents of the whole building.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_categoria_tit', N'Categoría', N'Category')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_categoria_1', N'Una categoría es el tipo de problema o rubro de trabajo, por ejemplo Plomería, Electricidad, Ascensor, Gas o Cerrajería.', N'A category is the type of problem or trade, for example Plumbing, Electricity, Elevator, Gas or Locksmith.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_categoria_2', N'Datos: nombre.', N'Data: name.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_categoria_3', N'Clasifica el reclamo: se elige al cargarlo y se confirma o corrige al clasificarlo.', N'It classifies the claim: it is chosen when registering and confirmed or corrected when classifying.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_categoria_4', N'Determina a qué proveedores se puede derivar: solo a los proveedores habilitados que trabajan en esa categoría.', N'It determines which suppliers the claim can be assigned to: only enabled suppliers working in that category.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_categoria_5', N'Se usa para detectar reincidencias y para agrupar los reclamos repetidos en la propuesta de asamblea.', N'It is used to detect recurrences and to group repeated claims in the assembly proposal.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_proveedor_tit', N'Proveedor', N'Supplier')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_proveedor_1', N'Un proveedor es la empresa o persona que resuelve los reclamos derivados.', N'A supplier is the company or person who solves assigned claims.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_proveedor_2', N'Datos: nombre, CUIT (no se puede repetir), email, una o más categorías en las que trabaja y si está habilitado.', N'Data: name, CUIT (tax id, cannot be repeated), email, one or more categories it works in and whether it is enabled.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_proveedor_3', N'Al derivar un reclamo solo aparecen los proveedores habilitados de su categoría.', N'When assigning a claim, only enabled suppliers of its category appear.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_proveedor_4', N'Con los reclamos que resolvió se calcula su desempeño (precio promedio, tiempo promedio y tasa de reincidencia), que ordena la lista al derivar.', N'Its performance (average price, average time and recurrence rate) is calculated from the claims it solved and sorts the list when assigning.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_con_proveedor_5', N'Cada alta o cambio de sus datos queda registrado como una versión en la bitácora de cambios de proveedores.', N'Every new supplier or change to its data is recorded as a version in the supplier change log.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_reporteGlobal_tit', N'Reporte Global', N'Global Report')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_reporteGlobal_1', N'Analiza los reclamos por consorcio y categoría: cantidad, cerrados, porcentaje de resolución, costos, días de cierre y proveedor principal.', N'Analyzes claims by building and category: count, closed, resolution rate, costs, days to close and main supplier.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_reporteGlobal_2', N'Elija las fechas desde y hasta del reclamo y, si quiere, un consorcio (Todos por defecto), y presione Generar.', N'Choose the claim dates from and to and, optionally, a building (All by default), and press Generate.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_reporteGlobal_3', N'El porcentaje de resolución es cerrados sobre total; el costo promedio y los días promedio se calculan sobre los reclamos cerrados.', N'The resolution rate is closed over total; average cost and average days are calculated over closed claims.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_reporteGlobal_4', N'Las filas en rojo tienen menor porcentaje de resolución o mayor tiempo promedio de cierre que el total general; la columna Indicador dice cuál.', N'Rows in red have a lower resolution rate or a longer average closing time than the grand total; the Indicator column says which.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_reporteGlobal_5', N'El gráfico muestra el costo total imputado por categoría. Exportar a PDF genera el Reporte Global con la tabla, los totales y el gráfico.', N'The chart shows the total charged cost by category. Export to PDF creates the Global Report with the table, the totals and the chart.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'ayu_rec_reporteGlobal_6', N'Errores comunes: La fecha desde no puede ser posterior a la fecha hasta.', N'Common errors: The from date cannot be later than the to date.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_repglo_dtpDesde', N'Fecha de alta del reclamo desde la que se analiza', N'Claim date from which the analysis starts')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_repglo_dtpHasta', N'Fecha de alta del reclamo hasta la que se analiza', N'Claim date up to which the analysis runs')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_repglo_cboConsorcio', N'Consorcio a analizar (Todos por defecto)', N'Building to analyze (All by default)')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_repglo_btnGenerar', N'Calcula el Reporte Global con los filtros elegidos', N'Calculates the Global Report with the selected filters')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_repglo_btnExportar', N'Guarda el Reporte Global en PDF con la tabla y el gráfico', N'Saves the Global Report as PDF with the table and the chart')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_repglo_dgvReporte', N'En rojo: resolución menor o cierre más lento que el total general', N'In red: lower resolution or slower closing than the grand total')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'tt_repglo_picGrafico', N'Costo total imputado por categoría', N'Total charged cost by category')
+
+INSERT INTO [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion])
+SELECT CONVERT(nvarchar(50), NEWID()), c.Clave FROM @Claves c
+WHERE NOT EXISTS (SELECT 1 FROM [dbo].[Etiqueta] e WHERE e.Etiqueta_Descripcion = c.Clave)
+
+INSERT INTO [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion])
+SELECT e.Etiqueta_ID, i.Idioma_ID, CASE WHEN i.Idioma_Descripcion = N'Español' THEN c.TextoEs ELSE c.TextoEn END
+FROM @Claves c INNER JOIN [dbo].[Etiqueta] e ON e.Etiqueta_Descripcion = c.Clave
+CROSS JOIN [dbo].[Idioma] i WHERE i.Idioma_Descripcion IN (N'Español', N'Inglés')
+AND NOT EXISTS (SELECT 1 FROM [dbo].[Traduccion] t WHERE t.Etiqueta_ID = e.Etiqueta_ID AND t.Idioma_ID = i.Idioma_ID)
+COMMIT TRANSACTION
+GO
+
+-- ============================================================================
+-- Reporte Global: permiso, relación con la familia Gestor de consorcios y textos de la pantalla
+-- Idempotente. Permiso, Familia_Patente, Etiqueta y Traduccion no tienen DVH ni participan del DVV.
+-- ============================================================================
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Permiso] WHERE [Permiso_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1037')
+INSERT [dbo].[Permiso] ([Permiso_ID], [Permiso_Descripcion], [Permiso_Tipo]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1037', N'Reporte Global', 17)
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Familia_Patente] WHERE [Padre_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001' AND [Hijo_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1037')
+INSERT [dbo].[Familia_Patente] ([Padre_ID], [Hijo_ID]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001', N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1037')
+GO
+SET NOCOUNT ON
+GO
+BEGIN TRANSACTION
+DECLARE @Claves TABLE (Clave nvarchar(50) NOT NULL PRIMARY KEY, TextoEs nvarchar(300) NOT NULL, TextoEn nvarchar(300) NOT NULL)
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'lb_reporteGlobal', N'Reporte Global', N'Global Report')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'frm_repglo_frmReporteGlobal', N'Reporte Global', N'Global Report')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'grp_repglo_grpFiltros', N'Filtros', N'Filters')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'lb_repglo_lblDesde', N'Desde', N'From')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'lb_repglo_lblHasta', N'Hasta', N'To')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'lb_repglo_lblConsorcio', N'Consorcio', N'Building')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'btn_repglo_btnGenerar', N'Generar', N'Generate')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'btn_repglo_btnExportar', N'Exportar a PDF', N'Export to PDF')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'grp_repglo_grpResultados', N'Resultados por consorcio y categoría', N'Results by building and category')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'grp_repglo_grpGrafico', N'Costo total por categoría', N'Total cost by category')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'col_repglo_colConsorcio', N'Consorcio', N'Building')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'col_repglo_colCategoria', N'Categoría', N'Category')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'col_repglo_colReclamos', N'Reclamos', N'Claims')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'col_repglo_colCerrados', N'Cerrados', N'Closed')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'col_repglo_colResolucion', N'% resolución', N'% resolved')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'col_repglo_colCostoTotal', N'Costo total', N'Total cost')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'col_repglo_colCostoPromedio', N'Costo promedio', N'Average cost')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'col_repglo_colDiasPromedio', N'Días promedio de cierre', N'Average days to close')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'col_repglo_colProveedor', N'Proveedor principal', N'Main supplier')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'col_repglo_colIndicador', N'Indicador', N'Indicator')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'lb_repglo_leyenda', N'En rojo: combinaciones con % de resolución menor o tiempo promedio de cierre mayor que el total general.', N'In red: combinations with a lower resolution rate or a longer average closing time than the grand total.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'lb_repglo_todos', N'Todos', N'All')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'lb_repglo_total', N'Total general', N'Grand total')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'lb_repglo_motivoResolucion', N'Resolución baja', N'Low resolution')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'lb_repglo_motivoDemora', N'Demora alta', N'Slow closing')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'lb_repglo_sinDatos', N'No hay reclamos para los filtros elegidos.', N'There are no claims for the selected filters.')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'lb_repglo_periodo', N'Período', N'Period')
+INSERT INTO @Claves (Clave, TextoEs, TextoEn) VALUES (N'lb_repglo_generado', N'Generado', N'Generated')
+
+INSERT INTO [dbo].[Etiqueta] ([Etiqueta_ID], [Etiqueta_Descripcion])
+SELECT CONVERT(nvarchar(50), NEWID()), c.Clave FROM @Claves c
+WHERE NOT EXISTS (SELECT 1 FROM [dbo].[Etiqueta] e WHERE e.Etiqueta_Descripcion = c.Clave)
+
+INSERT INTO [dbo].[Traduccion] ([Etiqueta_ID], [Idioma_ID], [Traduccion_Traduccion])
+SELECT e.Etiqueta_ID, i.Idioma_ID, CASE WHEN i.Idioma_Descripcion = N'Español' THEN c.TextoEs ELSE c.TextoEn END
+FROM @Claves c INNER JOIN [dbo].[Etiqueta] e ON e.Etiqueta_Descripcion = c.Clave
+CROSS JOIN [dbo].[Idioma] i WHERE i.Idioma_Descripcion IN (N'Español', N'Inglés')
+AND NOT EXISTS (SELECT 1 FROM [dbo].[Traduccion] t WHERE t.Etiqueta_ID = e.Etiqueta_ID AND t.Idioma_ID = i.Idioma_ID)
+COMMIT TRANSACTION
+GO
+
+-- ============================================================================
+-- Datos de demostración al 21/11/2026: reclamos, derivaciones, cierres, propuestas y demás datos cargados desde el sistema.
+-- Idempotente: solo agrega las filas que faltan (IF NOT EXISTS) y actualiza las que cambiaron. No borra nada.
+-- Los DVH y los DVV se copian tal cual de una base que pasa la verificación de integridad.
+-- El trigger de versiones de PROVEEDOR se desactiva durante la carga porque sus versiones (PROVEEDOR_C) se cargan acá.
+-- ============================================================================
+SET NOCOUNT ON
+GO
+BEGIN TRANSACTION;
+DISABLE TRIGGER [dbo].[TR_PROVEEDOR_C] ON [dbo].[PROVEEDOR];
+-- CATEGORIA: 1 filas
+SET IDENTITY_INSERT [dbo].[CATEGORIA] ON;
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CATEGORIA] WHERE [IdCategoria_413BE] = 6) INSERT [dbo].[CATEGORIA] ([IdCategoria_413BE], [Nombre_413BE], [Dvh_413BE]) VALUES (6, N'Pintura', 25);
+SET IDENTITY_INSERT [dbo].[CATEGORIA] OFF;
+-- RECLAMO: 21 filas
+SET IDENTITY_INSERT [dbo].[RECLAMO] ON;
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 29) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (29, 1, 1, 3, NULL, N'Ascensor', NULL, N'[Prueba PN02] El ascensor se detiene entre pisos', CAST(N'2026-09-14T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'URGENTE_413BE', N'COMUN_413BE', 0, 44);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 30) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (30, 1, 2, 3, NULL, N'Ascensor', NULL, N'[Prueba PN02] El ascensor no responde a los botones', CAST(N'2026-09-25T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'URGENTE_413BE', N'COMUN_413BE', 0, 88);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 31) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (31, 1, 3, 3, NULL, N'Ascensor', NULL, N'[Prueba PN02] Ruido fuerte al subir', CAST(N'2026-10-08T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'COMUN_413BE', 0, 48);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 32) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (32, 1, 4, 3, NULL, N'Ascensor', NULL, N'[Prueba PN02] El ascensor queda trabado en planta baja', CAST(N'2026-10-27T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'URGENTE_413BE', N'COMUN_413BE', 0, 0);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 33) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (33, 1, 1, 1, NULL, N'Terraza', NULL, N'[Prueba PN02] Filtracion en la terraza', CAST(N'2026-09-19T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'COMUN_413BE', 0, 36);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 34) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (34, 1, 5, 1, NULL, N'Terraza', NULL, N'[Prueba PN02] Cañeria rota en la terraza', CAST(N'2026-10-03T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'COMUN_413BE', 0, 58);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 35) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (35, 1, 6, 1, NULL, N'Terraza', NULL, N'[Prueba PN02] Humedad en el techo de la terraza', CAST(N'2026-10-18T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'BAJA_413BE', N'COMUN_413BE', 0, 84);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 36) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (36, 1, 3, 2, 3, NULL, NULL, N'[Prueba PN02] Corte de luz en la cocina', CAST(N'2026-09-27T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 21);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 37) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (37, 1, 3, 2, 3, NULL, NULL, N'[Prueba PN02] Tomacorrientes sin tension', CAST(N'2026-10-11T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 14);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 38) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (38, 1, 3, 2, 3, NULL, NULL, N'[Prueba PN02] Salta la llave termica', CAST(N'2026-10-29T12:00:00.000' AS DateTime), N'DERIVADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 22);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 39) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (39, 1, 4, 4, NULL, N'Sala de máquinas', NULL, N'[Prueba PN02] Olor a gas en la sala de maquinas', CAST(N'2026-10-06T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'URGENTE_413BE', N'COMUN_413BE', 0, 71);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 40) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (40, 1, 4, 4, NULL, N'Sala de máquinas', NULL, N'[Prueba PN02] Perdida en el medidor', CAST(N'2026-10-24T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'URGENTE_413BE', N'COMUN_413BE', 0, 52);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 41) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (41, 2, 7, 1, 7, NULL, NULL, N'[Prueba PN02] Perdida en el bano', CAST(N'2026-09-22T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 22);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 42) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (42, 2, 7, 1, 7, NULL, NULL, N'[Prueba PN02] Canilla que gotea', CAST(N'2026-10-05T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'BAJA_413BE', N'PARTICULAR_413BE', 0, 63);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 43) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (43, 2, 7, 1, 7, NULL, NULL, N'[Prueba PN02] Desague tapado', CAST(N'2026-10-22T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 45);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 44) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (44, 2, 9, 5, NULL, N'Portón de entrada', NULL, N'[Prueba PN02] El porton no cierra', CAST(N'2026-10-01T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'COMUN_413BE', 0, 75);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 45) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (45, 2, 10, 5, NULL, N'Portón de entrada', NULL, N'[Prueba PN02] Cerradura trabada', CAST(N'2026-10-16T12:00:00.000' AS DateTime), N'CERRADO_413BE', N'MEDIA_413BE', N'COMUN_413BE', 0, 57);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 46) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (46, 2, 8, 2, 8, NULL, NULL, N'[Prueba PN02] Luz del pasillo intermitente', CAST(N'2026-11-03T12:00:00.000' AS DateTime), N'PENDIENTE_CLASIFICACION_413BE', NULL, NULL, 0, 48);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 47) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (47, 1, 2, 1, 2, NULL, NULL, N'[Prueba PN02] Gotera en el techo del dormitorio', CAST(N'2026-11-02T12:00:00.000' AS DateTime), N'CLASIFICADO_413BE', N'URGENTE_413BE', N'PARTICULAR_413BE', 0, 37);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 48) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (48, 2, 11, 6, NULL, N'Hall de entrada', NULL, N'[Prueba PN02] Pintura descascarada en el hall', CAST(N'2026-11-01T12:00:00.000' AS DateTime), N'CLASIFICADO_413BE', N'BAJA_413BE', N'COMUN_413BE', 0, 76);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[RECLAMO] WHERE [IdReclamo_413BE] = 49) INSERT [dbo].[RECLAMO] ([IdReclamo_413BE], [IdConsorcio_413BE], [IdConsorcista_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [IdReclamoOriginal_413BE], [Descripcion_413BE], [FechaAlta_413BE], [Estado_413BE], [Prioridad_413BE], [TipoImputacion_413BE], [Reincidente_413BE], [Dvh_413BE]) VALUES (49, 2, 17, 5, 8, NULL, NULL, N'Dejo de abrir', CAST(N'2026-11-05T23:56:39.320' AS DateTime), N'CLASIFICADO_413BE', N'MEDIA_413BE', N'PARTICULAR_413BE', 0, 19);
+SET IDENTITY_INSERT [dbo].[RECLAMO] OFF;
+-- DERIVACION: 17 filas
+SET IDENTITY_INSERT [dbo].[DERIVACION] ON;
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 23) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (23, 29, 6, CAST(N'2026-09-15T12:00:00.000' AS DateTime), 7, 1);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 24) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (24, 30, 6, CAST(N'2026-09-26T12:00:00.000' AS DateTime), 7, 41);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 25) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (25, 31, 6, CAST(N'2026-10-09T12:00:00.000' AS DateTime), 7, 5);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 26) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (26, 32, 6, CAST(N'2026-10-28T12:00:00.000' AS DateTime), 7, 31);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 27) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (27, 33, 1, CAST(N'2026-09-20T12:00:00.000' AS DateTime), 7, 51);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 28) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (28, 34, 2, CAST(N'2026-10-04T12:00:00.000' AS DateTime), 7, 47);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 29) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (29, 35, 1, CAST(N'2026-10-19T12:00:00.000' AS DateTime), 7, 30);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 30) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (30, 36, 4, CAST(N'2026-09-28T12:00:00.000' AS DateTime), 7, 12);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 31) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (31, 37, 5, CAST(N'2026-10-12T12:00:00.000' AS DateTime), 7, 26);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 32) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (32, 38, 4, CAST(N'2026-10-30T12:00:00.000' AS DateTime), 7, 20);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 33) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (33, 39, 5, CAST(N'2026-10-07T12:00:00.000' AS DateTime), 7, 56);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 34) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (34, 40, 5, CAST(N'2026-10-25T12:00:00.000' AS DateTime), 7, 33);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 35) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (35, 41, 3, CAST(N'2026-09-23T12:00:00.000' AS DateTime), 7, 45);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 36) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (36, 42, 3, CAST(N'2026-10-06T12:00:00.000' AS DateTime), 7, 9);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 37) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (37, 43, 1, CAST(N'2026-10-23T12:00:00.000' AS DateTime), 7, 68);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 38) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (38, 44, 7, CAST(N'2026-10-02T12:00:00.000' AS DateTime), 7, 95);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DERIVACION] WHERE [IdDerivacion_413BE] = 39) INSERT [dbo].[DERIVACION] ([IdDerivacion_413BE], [IdReclamo_413BE], [IdProveedor_413BE], [FechaDerivacion_413BE], [PlazoSlaDias_413BE], [Dvh_413BE]) VALUES (39, 45, 7, CAST(N'2026-10-17T12:00:00.000' AS DateTime), 7, 80);
+SET IDENTITY_INSERT [dbo].[DERIVACION] OFF;
+-- CIERRE_RECLAMO: 16 filas
+SET IDENTITY_INSERT [dbo].[CIERRE_RECLAMO] ON;
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CIERRE_RECLAMO] WHERE [IdCierre_413BE] = 20) INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (20, 29, CAST(N'2026-09-18T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'B-0001-00000029', N'Registro general del consorcio 1', 95000.00, 27);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CIERRE_RECLAMO] WHERE [IdCierre_413BE] = 21) INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (21, 30, CAST(N'2026-09-29T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'B-0001-00000030', N'Registro general del consorcio 1', 110000.00, 11);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CIERRE_RECLAMO] WHERE [IdCierre_413BE] = 22) INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (22, 31, CAST(N'2026-10-12T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'B-0001-00000031', N'Registro general del consorcio 1', 85000.00, 27);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CIERRE_RECLAMO] WHERE [IdCierre_413BE] = 23) INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (23, 32, CAST(N'2026-10-31T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'B-0001-00000032', N'Registro general del consorcio 1', 120000.00, 85);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CIERRE_RECLAMO] WHERE [IdCierre_413BE] = 24) INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (24, 33, CAST(N'2026-09-23T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'B-0001-00000033', N'Registro general del consorcio 1', 30000.00, 19);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CIERRE_RECLAMO] WHERE [IdCierre_413BE] = 25) INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (25, 34, CAST(N'2026-10-07T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'B-0001-00000034', N'Registro general del consorcio 1', 28000.00, 4);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CIERRE_RECLAMO] WHERE [IdCierre_413BE] = 26) INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (26, 35, CAST(N'2026-10-22T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'B-0001-00000035', N'Registro general del consorcio 1', 35000.00, 69);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CIERRE_RECLAMO] WHERE [IdCierre_413BE] = 27) INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (27, 36, CAST(N'2026-10-01T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'B-0001-00000036', N'Unidad funcional 3', 22000.00, 6);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CIERRE_RECLAMO] WHERE [IdCierre_413BE] = 28) INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (28, 37, CAST(N'2026-10-15T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'B-0001-00000037', N'Unidad funcional 3', 18000.00, 38);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CIERRE_RECLAMO] WHERE [IdCierre_413BE] = 29) INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (29, 39, CAST(N'2026-10-10T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'B-0001-00000039', N'Registro general del consorcio 1', 40000.00, 11);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CIERRE_RECLAMO] WHERE [IdCierre_413BE] = 30) INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (30, 40, CAST(N'2026-10-28T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'B-0001-00000040', N'Registro general del consorcio 1', 38000.00, 69);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CIERRE_RECLAMO] WHERE [IdCierre_413BE] = 31) INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (31, 41, CAST(N'2026-09-26T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'B-0001-00000041', N'Unidad funcional 7', 26000.00, 23);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CIERRE_RECLAMO] WHERE [IdCierre_413BE] = 32) INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (32, 42, CAST(N'2026-10-09T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'B-0001-00000042', N'Unidad funcional 7', 24000.00, 68);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CIERRE_RECLAMO] WHERE [IdCierre_413BE] = 33) INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (33, 43, CAST(N'2026-10-26T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'B-0001-00000043', N'Unidad funcional 7', 31000.00, 76);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CIERRE_RECLAMO] WHERE [IdCierre_413BE] = 34) INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (34, 44, CAST(N'2026-10-05T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'B-0001-00000044', N'Registro general del consorcio 2', 15000.00, 42);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[CIERRE_RECLAMO] WHERE [IdCierre_413BE] = 35) INSERT [dbo].[CIERRE_RECLAMO] ([IdCierre_413BE], [IdReclamo_413BE], [FechaCierre_413BE], [InformeResolucion_413BE], [NumeroFactura_413BE], [CuentaImputada_413BE], [CostoImputado_413BE], [Dvh_413BE]) VALUES (35, 45, CAST(N'2026-10-20T12:00:00.000' AS DateTime), N'Trabajo resuelto por el proveedor.', N'B-0001-00000045', N'Registro general del consorcio 2', 17000.00, 64);
+SET IDENTITY_INSERT [dbo].[CIERRE_RECLAMO] OFF;
+-- PROPUESTA_ASAMBLEA: 1 filas
+SET IDENTITY_INSERT [dbo].[PROPUESTA_ASAMBLEA] ON;
+IF NOT EXISTS (SELECT 1 FROM [dbo].[PROPUESTA_ASAMBLEA] WHERE [IdPropuesta_413BE] = 1) INSERT [dbo].[PROPUESTA_ASAMBLEA] ([IdPropuesta_413BE], [IdConsorcio_413BE], [FechaGeneracion_413BE], [PeriodoDesde_413BE], [PeriodoHasta_413BE], [UmbralRepeticion_413BE], [Estado_413BE], [Dvh_413BE]) VALUES (1, 1, CAST(N'2026-11-05T23:22:56.810' AS DateTime), CAST(N'2026-06-01T00:00:00.000' AS DateTime), CAST(N'2026-11-05T00:00:00.000' AS DateTime), 3, N'CON_ORDEN_DIA_413BE', 84);
+SET IDENTITY_INSERT [dbo].[PROPUESTA_ASAMBLEA] OFF;
+-- ORDEN_DIA: 1 filas
+SET IDENTITY_INSERT [dbo].[ORDEN_DIA] ON;
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ORDEN_DIA] WHERE [IdOrdenDia_413BE] = 1) INSERT [dbo].[ORDEN_DIA] ([IdOrdenDia_413BE], [IdPropuesta_413BE], [FechaAsamblea_413BE], [FechaRegistro_413BE], [Dvh_413BE]) VALUES (1, 1, CAST(N'2026-11-05T00:00:00.000' AS DateTime), CAST(N'2026-11-05T23:25:35.897' AS DateTime), 35);
+SET IDENTITY_INSERT [dbo].[ORDEN_DIA] OFF;
+-- TEMA_PROPUESTO: 4 filas
+SET IDENTITY_INSERT [dbo].[TEMA_PROPUESTO] ON;
+IF NOT EXISTS (SELECT 1 FROM [dbo].[TEMA_PROPUESTO] WHERE [IdTema_413BE] = 1) INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (1, 1, 3, NULL, N'Ascensor', 5, 560000.00, 4.6, 100000.00, 1, 1, 67);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[TEMA_PROPUESTO] WHERE [IdTema_413BE] = 2) INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (2, 1, 1, NULL, N'Terraza', 3, 93000.00, 4, 50000.00, NULL, NULL, 77);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[TEMA_PROPUESTO] WHERE [IdTema_413BE] = 3) INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (3, 1, 1, 2, NULL, 3, 40000.00, 20, 10000.00, NULL, NULL, 22);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[TEMA_PROPUESTO] WHERE [IdTema_413BE] = 4) INSERT [dbo].[TEMA_PROPUESTO] ([IdTema_413BE], [IdPropuesta_413BE], [IdCategoria_413BE], [IdUnidadFuncional_413BE], [AreaComun_413BE], [CantidadReclamos_413BE], [CostoAcumulado_413BE], [TiempoPromedioAbiertoDias_413BE], [CostoSolucion_413BE], [IdOrdenDia_413BE], [OrdenEnOrdenDia_413BE], [Dvh_413BE]) VALUES (4, 1, 2, 3, NULL, 4, 40000.00, 16, 30000.00, NULL, NULL, 28);
+SET IDENTITY_INSERT [dbo].[TEMA_PROPUESTO] OFF;
+-- PROVEEDOR_C: 4 filas
+SET IDENTITY_INSERT [dbo].[PROVEEDOR_C] ON;
+IF NOT EXISTS (SELECT 1 FROM [dbo].[PROVEEDOR_C] WHERE [IdProveedorC_413BE] = 13) INSERT [dbo].[PROVEEDOR_C] ([IdProveedorC_413BE], [IdProveedor_413BE], [Nombre_413BE], [Cuit_413BE], [Email_413BE], [Habilitado_413BE], [Fecha_413BE], [Hora_413BE], [Act_413BE]) VALUES (13, 2, N'Aguas y Caños SA', N'30-70000002-4', N'contacto@aguasycanos.example.com', 1, CAST(N'2026-11-06T00:00:00.000' AS DateTime), CAST(N'18:41:10.0000000' AS time), 0);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[PROVEEDOR_C] WHERE [IdProveedorC_413BE] = 14) INSERT [dbo].[PROVEEDOR_C] ([IdProveedorC_413BE], [IdProveedor_413BE], [Nombre_413BE], [Cuit_413BE], [Email_413BE], [Habilitado_413BE], [Fecha_413BE], [Hora_413BE], [Act_413BE]) VALUES (14, 2, N'Aguas y Caños SA', N'30-70000002-2', N'contacto@aguasycanos.example.com', 1, CAST(N'2026-11-06T00:00:00.000' AS DateTime), CAST(N'18:41:53.0000000' AS time), 1);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[PROVEEDOR_C] WHERE [IdProveedorC_413BE] = 15) INSERT [dbo].[PROVEEDOR_C] ([IdProveedorC_413BE], [IdProveedor_413BE], [Nombre_413BE], [Cuit_413BE], [Email_413BE], [Habilitado_413BE], [Fecha_413BE], [Hora_413BE], [Act_413BE]) VALUES (15, 6, N'Elevar Ascensores SA', N'30-70000006-6', N'contacto@elevar.example.com', 0, CAST(N'2026-11-06T00:00:00.000' AS DateTime), CAST(N'18:42:12.0000000' AS time), 0);
+IF NOT EXISTS (SELECT 1 FROM [dbo].[PROVEEDOR_C] WHERE [IdProveedorC_413BE] = 16) INSERT [dbo].[PROVEEDOR_C] ([IdProveedorC_413BE], [IdProveedor_413BE], [Nombre_413BE], [Cuit_413BE], [Email_413BE], [Habilitado_413BE], [Fecha_413BE], [Hora_413BE], [Act_413BE]) VALUES (16, 6, N'Elevar Ascensores SA', N'30-70000006-6', N'contacto@elevar.example.com', 1, CAST(N'2026-11-06T00:00:00.000' AS DateTime), CAST(N'18:42:24.0000000' AS time), 1);
+SET IDENTITY_INSERT [dbo].[PROVEEDOR_C] OFF;
+-- Usuario_Permiso: 2 filas
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Usuario_Permiso] WHERE [Permiso_ID] = N'28a2317f-4de7-4976-8810-bf9fc517c6ea' AND [Usuario_ID] = N'b9c09721-83e1-4874-9bb2-58d8f4520248') INSERT [dbo].[Usuario_Permiso] ([Permiso_ID], [Usuario_ID]) VALUES (N'28a2317f-4de7-4976-8810-bf9fc517c6ea', N'b9c09721-83e1-4874-9bb2-58d8f4520248');
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Usuario_Permiso] WHERE [Permiso_ID] = N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001' AND [Usuario_ID] = N'b9c09721-83e1-4874-9bb2-58d8f4520248') INSERT [dbo].[Usuario_Permiso] ([Permiso_ID], [Usuario_ID]) VALUES (N'6d0a1f40-8c2e-4b7a-9a11-0f6c5b7d1001', N'b9c09721-83e1-4874-9bb2-58d8f4520248');
+-- DigitoVerificadorVertical: 3 filas
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DigitoVerificadorVertical] WHERE [DVV_Tabla] = N'ORDEN_DIA') INSERT [dbo].[DigitoVerificadorVertical] ([DVV_ID], [DVV_Tabla], [DVV_Atributo], [DVV_Valor], [DVV_FechaCalculo]) VALUES (N'2c39818c-a70b-42c8-89eb-e2a0a0a91ba9', N'ORDEN_DIA', N'*', 35, CAST(N'2026-11-06T18:42:24.000' AS DateTime));
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DigitoVerificadorVertical] WHERE [DVV_Tabla] = N'PROPUESTA_ASAMBLEA') INSERT [dbo].[DigitoVerificadorVertical] ([DVV_ID], [DVV_Tabla], [DVV_Atributo], [DVV_Valor], [DVV_FechaCalculo]) VALUES (N'354c59e1-5231-409b-a2b2-dfdbe4ab7b6d', N'PROPUESTA_ASAMBLEA', N'*', 84, CAST(N'2026-11-06T18:42:24.000' AS DateTime));
+IF NOT EXISTS (SELECT 1 FROM [dbo].[DigitoVerificadorVertical] WHERE [DVV_Tabla] = N'TEMA_PROPUESTO') INSERT [dbo].[DigitoVerificadorVertical] ([DVV_ID], [DVV_Tabla], [DVV_Atributo], [DVV_Valor], [DVV_FechaCalculo]) VALUES (N'5e2dee62-69af-4328-9bc3-978ae0f15a2c', N'TEMA_PROPUESTO', N'*', 11, CAST(N'2026-11-06T18:42:24.000' AS DateTime));
+-- PROVEEDOR_C: 7 filas con valores de hoy
+UPDATE [dbo].[PROVEEDOR_C] SET [Fecha_413BE] = CAST(N'2026-11-06T00:00:00.000' AS DateTime), [Hora_413BE] = CAST(N'18:32:17.0000000' AS time) WHERE [IdProveedorC_413BE] = 1;
+UPDATE [dbo].[PROVEEDOR_C] SET [Fecha_413BE] = CAST(N'2026-11-06T00:00:00.000' AS DateTime), [Hora_413BE] = CAST(N'18:32:17.0000000' AS time), [Act_413BE] = 0 WHERE [IdProveedorC_413BE] = 2;
+UPDATE [dbo].[PROVEEDOR_C] SET [Fecha_413BE] = CAST(N'2026-11-06T00:00:00.000' AS DateTime), [Hora_413BE] = CAST(N'18:32:17.0000000' AS time) WHERE [IdProveedorC_413BE] = 3;
+UPDATE [dbo].[PROVEEDOR_C] SET [Fecha_413BE] = CAST(N'2026-11-06T00:00:00.000' AS DateTime), [Hora_413BE] = CAST(N'18:32:17.0000000' AS time) WHERE [IdProveedorC_413BE] = 4;
+UPDATE [dbo].[PROVEEDOR_C] SET [Fecha_413BE] = CAST(N'2026-11-06T00:00:00.000' AS DateTime), [Hora_413BE] = CAST(N'18:32:17.0000000' AS time) WHERE [IdProveedorC_413BE] = 5;
+UPDATE [dbo].[PROVEEDOR_C] SET [Fecha_413BE] = CAST(N'2026-11-06T00:00:00.000' AS DateTime), [Hora_413BE] = CAST(N'18:32:17.0000000' AS time), [Act_413BE] = 0 WHERE [IdProveedorC_413BE] = 6;
+UPDATE [dbo].[PROVEEDOR_C] SET [Fecha_413BE] = CAST(N'2026-11-06T00:00:00.000' AS DateTime), [Hora_413BE] = CAST(N'18:32:17.0000000' AS time) WHERE [IdProveedorC_413BE] = 7;
+-- Usuario: 1 filas con valores de hoy
+UPDATE [dbo].[Usuario] SET [Usuario_Pass] = N'03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', [Usuario_Baja] = 0, [Usuario_DVH] = 66 WHERE [Usuario_ID] = N'b9c09721-83e1-4874-9bb2-58d8f4520248';
+-- DigitoVerificadorVertical: 10 filas con valores de hoy
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_Valor] = 29, [DVV_FechaCalculo] = CAST(N'2026-11-06T18:42:24.000' AS DateTime) WHERE [DVV_Tabla] = N'CATEGORIA';
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_Valor] = 88, [DVV_FechaCalculo] = CAST(N'2026-11-06T18:42:24.000' AS DateTime) WHERE [DVV_Tabla] = N'CIERRE_RECLAMO';
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_FechaCalculo] = CAST(N'2026-11-06T18:42:24.000' AS DateTime) WHERE [DVV_Tabla] = N'CONSORCIO';
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_FechaCalculo] = CAST(N'2026-11-06T18:42:24.000' AS DateTime) WHERE [DVV_Tabla] = N'CONSORCISTA';
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_Valor] = 15, [DVV_FechaCalculo] = CAST(N'2026-11-06T18:42:24.000' AS DateTime) WHERE [DVV_Tabla] = N'DERIVACION';
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_FechaCalculo] = CAST(N'2026-11-06T18:42:24.000' AS DateTime) WHERE [DVV_Tabla] = N'PROVEEDOR';
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_FechaCalculo] = CAST(N'2026-11-06T18:42:24.000' AS DateTime) WHERE [DVV_Tabla] = N'PROVEEDOR_CATEGORIA';
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_Valor] = 37, [DVV_FechaCalculo] = CAST(N'2026-11-06T18:42:24.000' AS DateTime) WHERE [DVV_Tabla] = N'RECLAMO';
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_FechaCalculo] = CAST(N'2026-11-06T18:42:24.000' AS DateTime) WHERE [DVV_Tabla] = N'UNIDAD_FUNCIONAL';
+UPDATE [dbo].[DigitoVerificadorVertical] SET [DVV_Valor] = 52, [DVV_FechaCalculo] = CAST(N'2026-11-06T20:55:23.000' AS DateTime) WHERE [DVV_Tabla] = N'Usuario';
+ENABLE TRIGGER [dbo].[TR_PROVEEDOR_C] ON [dbo].[PROVEEDOR];
+COMMIT TRANSACTION
+GO

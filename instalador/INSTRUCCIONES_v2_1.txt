@@ -1,0 +1,43 @@
+INSTALADOR V2.1 DE CONSORCIOS PRO (A01.1) - PASO A PASO
+
+Novedades v2.1: el script de la base incluye la Ayuda en linea (20 temas y 22 mensajes de ayuda en espanol e ingles) y el Reporte Global
+y las etiquetas nuevas (Exportar historial de propuestas, Habilitar usuario). Es idempotente.
+Reemplaza a la v2: puede borrar la carpeta "instalador" anterior.
+
+ARMARLO
+1) Copiar la carpeta "instalador" dentro de la solucion, al lado de AppBase.sln.
+2) (Opcional, recomendado) Doble clic en Descargar_LocalDB.bat: baja SqlLocalDB.msi (~60 MB) a la carpeta redist.
+   Con ese archivo el instalador puede instalar un motor de base de datos en una PC que no tenga ninguno.
+   Sin el, el instalador funciona igual pero ese boton no aparece (ofrece el tutorial).
+3) IMPORTANTE: la aplicacion se vuelve a publicar desde el codigo actual (la carpeta bin\Release puede estar vieja).
+   Doble clic en Publicar_v2_1.bat (necesita internet la primera vez). Publica la aplicacion y DbInstaller.exe.
+4) Abrir ConsorciosPro_v2_1.iss con Inno Setup 6.3+ y Compile (Ctrl+F9).
+   Resultado: instalador\salida\Instalador_ConsorciosPro.exe
+   Si el .exe de la app no se llama AppBase.exe, cambiar  #define ExeApp  en el .iss.
+
+QUE CUBRE (pedido de la catedra)
+- Sin motor de base de datos: lo detecta, ofrece instalar SQL Server LocalDB (pide administrador solo para ese paso)
+  o abrir el tutorial.
+- Motor sin la instancia: lista las detectadas y deja escribir otra; si la conexion falla, avisa y deja corregir.
+- Servicio detenido: intenta iniciarlo; si no hay permiso, explica como.
+- Incompatibilidades: version del motor registrada en el log; base existente desactualizada -> aviso + backup.
+- Dependencias: la app es autocontenida (no requiere .NET). Esquema y datos de prueba: script embebido.
+- Conexion: escribe Servidor= en Configuracion_413BE.txt automaticamente.
+- Errores y reintentos: si falla el script, deshace la base parcial y pregunta si reintentar.
+- Instalaciones previas: si la base ya tiene datos, hace backup, la verifica y no la toca.
+- Contingencia: Tutorial_SQL_Server.html (se instala en Docs y tiene acceso directo en el menu Inicio).
+
+PRUEBAS PARA LA EVIDENCIA (sacar captura de cada una)
+ 1. PC con SQL Express y sin la base            -> la crea y carga todo.
+ 2. Reinstalar con la base ya creada            -> backup + verificacion, sin tocar datos.
+ 3. Servidor mal escrito                        -> mensaje de conexion y opcion de corregir.
+ 4. Servicio de SQL detenido (si se puede)      -> lo inicia o explica como.
+ 5. PC sin SQL Server (maquina virtual limpia)  -> boton LocalDB / tutorial.
+ 6. Instalacion silenciosa:  Instalador_ConsorciosPro.exe /VERYSILENT /Servidor=.\SQLEXPRESS
+Registro de todo: Documentos\ConsorciosPro_instalacion.log
+
+IMPORTANTE
+- Esta version NO esta probada todavia por mi (no tengo Windows ni SQL Server para ejecutarla). La primera compilacion o
+  prueba puede mostrar errores de detalle: mandame la captura y lo corrijo.
+- LocalDB es privado de cada usuario de Windows: la base queda en el perfil de quien instalo.
+- Instalar LocalDB requiere administrador; en la sala probablemente no se pueda, pero alli ya hay SQL Server.

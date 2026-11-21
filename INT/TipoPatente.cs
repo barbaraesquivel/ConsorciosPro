@@ -25,5 +25,6 @@ namespace INT
         SerializarPropuestas_413BE = 14,
         MantenimientoProveedores_413BE = 15,
         BitacoraProveedores_413BE = 16,
+        ReporteGlobal_413BE = 17,
     }
 }

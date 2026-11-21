@@ -43,6 +43,7 @@
             mnuMantenimientoProveedores_413BE = new ToolStripMenuItem();
             mnuBitacoraProveedores_413BE = new ToolStripMenuItem();
             mnuAyuda_413BE = new ToolStripMenuItem();
+            mnuReporteGlobal_413BE = new ToolStripMenuItem();
             lbdeslog_1 = new Label();
             lbdeslog_2 = new Label();
             menuPrincipal.SuspendLayout();
@@ -175,6 +176,13 @@
             mnuSerializarPropuestas.Text = "Serializar propuestas";
             mnuSerializarPropuestas.Tag = "lb_serializarPropuestas";
             mnuSerializarPropuestas.Click += mnuSerializarPropuestas_Click_413BE;
+            menuPrincipal.Items.Add(mnuReporteGlobal_413BE);
+            mnuReporteGlobal_413BE.Name = "mnuReporteGlobal_413BE";
+            mnuReporteGlobal_413BE.Size = new Size(100, 20);
+            mnuReporteGlobal_413BE.Text = "Reporte Global";
+            mnuReporteGlobal_413BE.Tag = "lb_reporteGlobal";
+            mnuReporteGlobal_413BE.Visible = false;
+            mnuReporteGlobal_413BE.Click += mnuReporteGlobal_Click_413BE;
             menuPrincipal.Items.Add(mnuMaestros_413BE);
             mnuMaestros_413BE.Name = "mnuMaestros_413BE";
             mnuMaestros_413BE.Size = new Size(70, 20);
@@ -272,5 +280,6 @@
         private System.Windows.Forms.ToolStripMenuItem mnuMantenimientoProveedores_413BE;
         private System.Windows.Forms.ToolStripMenuItem mnuBitacoraProveedores_413BE;
         private System.Windows.Forms.ToolStripMenuItem mnuAyuda_413BE;
+        private System.Windows.Forms.ToolStripMenuItem mnuReporteGlobal_413BE;
     }
 }
